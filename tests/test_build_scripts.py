@@ -1,0 +1,131 @@
+import hashlib
+import json
+from pathlib import Path
+
+import marisa_trie
+import pytest
+
+from scripts.build_trie import build_trie, parse_bayganyu_csv
+from scripts.download_sources import parse_sources_lock, verify_checksum
+
+
+class TestSourcesLock:
+    def test_parse_lock(self, tmp_path: Path) -> None:
+        lock = tmp_path / "sources.lock"
+        lock.write_text(
+            json.dumps({
+                "bayganyu": {
+                    "url": "https://example.com/bg.csv",
+                    "commit": "abc123",
+                    "sha256": "deadbeef",
+                    "license": "MIT",
+                }
+            }),
+            encoding="utf-8",
+        )
+        data = parse_sources_lock(lock)
+        assert data["bayganyu"]["sha256"] == "deadbeef"
+
+    def test_missing_sha256_raises(self, tmp_path: Path) -> None:
+        lock = tmp_path / "sources.lock"
+        lock.write_text(
+            json.dumps({"bayganyu": {"url": "https://example.com/bg.csv"}}),
+            encoding="utf-8",
+        )
+        with pytest.raises((KeyError, ValueError)):
+            data = parse_sources_lock(lock)
+            verify_checksum(tmp_path / "dummy.csv", data["bayganyu"]["sha256"])
+
+    def test_checksum_match(self, tmp_path: Path) -> None:
+        test_file = tmp_path / "test.csv"
+        test_file.write_text("hello", encoding="utf-8")
+        expected = hashlib.sha256(b"hello").hexdigest()
+        verify_checksum(test_file, expected)
+
+    def test_checksum_mismatch(self, tmp_path: Path) -> None:
+        test_file = tmp_path / "test.csv"
+        test_file.write_text("hello", encoding="utf-8")
+        with pytest.raises(ValueError, match="SHA256"):
+            verify_checksum(test_file, "0" * 64)
+
+
+class TestBayganyuCSVParsing:
+    def test_parse_stress_position(self, tmp_path: Path) -> None:
+        csv = tmp_path / "bg.csv"
+        csv.write_text("планината,плани'ната\n", encoding="utf-8")
+        entries = parse_bayganyu_csv(csv)
+        assert len(entries) == 1
+        assert entries[0][0] == "планината"
+        assert entries[0][1] == 1
+
+    def test_nfc_normalization(self, tmp_path: Path) -> None:
+        csv = tmp_path / "bg.csv"
+        csv.write_text("красива,краси'ва\n", encoding="utf-8")
+        entries = parse_bayganyu_csv(csv)
+        assert len(entries) == 1
+        import unicodedata
+
+        assert unicodedata.is_normalized("NFC", entries[0][0])
+
+    def test_meta_json_generated(self, tmp_path: Path) -> None:
+        csv = tmp_path / "bg.csv"
+        csv.write_text("планината,плани'ната\n", encoding="utf-8")
+        out = tmp_path / "output.marisa"
+        build_trie(csv, out, source_name="bayganyu", source_commit="abc")
+        meta_path = out.parent / (out.name + ".meta.json")
+        assert meta_path.exists()
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        assert meta["format_version"] == 1
+        assert meta["record_format"] == "HB"
+        assert meta["source"] == "bayganyu"
+
+    def test_built_trie_lookup(self, tmp_path: Path) -> None:
+        csv = tmp_path / "bg.csv"
+        csv.write_text("планината,плани'ната\n", encoding="utf-8")
+        out = tmp_path / "output.marisa"
+        build_trie(csv, out, source_name="bayganyu", source_commit="abc")
+        trie: marisa_trie.RecordTrie[tuple[int, int]] = marisa_trie.RecordTrie("HB")
+        trie.load(str(out))
+        results = trie["планината"]
+        assert len(results) == 1
+        assert results[0] == (1, 1)
+
+
+class TestBuildSafety:
+    def test_invalid_entry_stress_on_non_vowel(self, tmp_path: Path) -> None:
+        csv = tmp_path / "bg.csv"
+        csv.write_text("тест,т'ест\n", encoding="utf-8")
+        with pytest.raises(SystemExit):
+            build_trie(csv, tmp_path / "out.marisa", source_name="test", source_commit="x")
+
+    def test_allow_invalid_entries(self, tmp_path: Path) -> None:
+        csv = tmp_path / "bg.csv"
+        csv.write_text("тест,т'ест\nпланината,плани'ната\n", encoding="utf-8")
+        out = tmp_path / "out.marisa"
+        build_trie(
+            csv, out, source_name="test", source_commit="x", allow_invalid=True
+        )
+        trie: marisa_trie.RecordTrie[tuple[int, int]] = marisa_trie.RecordTrie("HB")
+        trie.load(str(out))
+        assert "планината" in trie
+
+    def test_homograph_all_variants_kept(self, tmp_path: Path) -> None:
+        csv = tmp_path / "bg.csv"
+        csv.write_text("замък,за'мък\nзамък,замъ'к\n", encoding="utf-8")
+        out = tmp_path / "out.marisa"
+        build_trie(csv, out, source_name="test", source_commit="x")
+        trie: marisa_trie.RecordTrie[tuple[int, int]] = marisa_trie.RecordTrie("HB")
+        trie.load(str(out))
+        results = trie["замък"]
+        ordinals = {r[0] for r in results}
+        assert 0 in ordinals
+        assert 1 in ordinals
+
+    def test_homograph_log(self, tmp_path: Path) -> None:
+        csv = tmp_path / "bg.csv"
+        csv.write_text("замък,за'мък\nзамък,замъ'к\n", encoding="utf-8")
+        out = tmp_path / "out.marisa"
+        build_trie(csv, out, source_name="test", source_commit="x")
+        log = tmp_path / "build_homographs.log"
+        assert log.exists()
+        assert "замък" in log.read_text(encoding="utf-8")
