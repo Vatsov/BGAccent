@@ -6,6 +6,7 @@ from typing import Any, Literal
 import marisa_trie
 
 from bgaccent.custom import CustomDict
+from bgaccent.disambiguator import HomographDisambiguator
 from bgaccent.morphology import SuffixStripper, morphology_lookup, transfer_stress
 from bgaccent.report import AccentResult, AccentStats, detect_script
 from bgaccent.tokenizer import Token, detokenize, tokenize
@@ -27,6 +28,7 @@ class Accentor:
         mark_monosyllables: bool = False,
         custom_dicts: list[Path] | None = None,
         mode: Mode = "preserve",
+        disambiguator_model: Any = None,
     ) -> None:
         if not trie_path.exists():
             raise FileNotFoundError(f"Trie file not found: {trie_path}")
@@ -36,6 +38,7 @@ class Accentor:
         self._custom = CustomDict.from_paths(custom_dicts) if custom_dicts else CustomDict()
         self._mode = mode
         self._stripper = SuffixStripper()
+        self._disambiguator = HomographDisambiguator(spacy_model=disambiguator_model)
 
     def accent(self, text: str) -> str:
         return self.accent_with_report(text).text
@@ -43,6 +46,7 @@ class Accentor:
     def accent_with_report(self, text: str) -> AccentResult:
         normalized = normalize(text)
         tokens = tokenize(normalized)
+        sentence_words = [t.text for t in tokens if t.kind == "word"]
         result_tokens: list[Token] = []
         stats = AccentStats()
         details: list[dict[str, Any]] = []
@@ -59,7 +63,7 @@ class Accentor:
                 continue
 
             stats.total_tokens += 1
-            accented, detail = self._process_word_token(token)
+            accented, detail = self._process_word_token(token, sentence_words)
 
             result_tokens.append(Token(
                 kind=token.kind,
@@ -85,9 +89,10 @@ class Accentor:
                     stats.skipped_monosyllabic += 1
                 elif status == "already_accented":
                     stats.already_accented += 1
-                elif status == "homograph_flagged":
+                elif status in ("homograph_flagged", "homograph_resolved"):
                     stats.accented_tokens += 1
-                    stats.homographs_flagged += 1
+                    if status == "homograph_flagged":
+                        stats.homographs_flagged += 1
                     word = detail["word"]
                     assert isinstance(word, str)
                     if word not in homograph_seen:
@@ -115,7 +120,7 @@ class Accentor:
         )
 
     def _process_word_token(
-        self, token: Token
+        self, token: Token, sentence_words: list[str] | None = None
     ) -> tuple[str, dict[str, Any] | None]:
         word = token.text
 
@@ -131,10 +136,12 @@ class Accentor:
                 }
             return accented, None
 
-        return self._accent_single_word_with_detail(word, token.line, token.col)
+        return self._accent_single_word_with_detail(
+            word, token.line, token.col, sentence_words
+        )
 
     def _accent_single_word_with_detail(
-        self, word: str, line: int, col: int
+        self, word: str, line: int, col: int, sentence_words: list[str] | None = None
     ) -> tuple[str, dict[str, Any] | None]:
         has_existing_accent = COMBINING_ACUTE in word
         clean = strip_accents(word)
@@ -262,6 +269,21 @@ class Accentor:
             }
 
         if len(results) > 1:
+            ctx = sentence_words if sentence_words is not None else [word]
+            resolved = self._disambiguator.disambiguate(
+                strip_accents(word).lower(), ctx, list(results)
+            )
+            if resolved is not None:
+                accented = place_accent(word, resolved)
+                return accented, {
+                    "word": word,
+                    "accented": accented,
+                    "chosen_vowel_index": resolved,
+                    "status": "homograph_resolved",
+                    "disambiguation": "pos",
+                    "line": line,
+                    "column": col,
+                }
             sorted_results = sorted(results, key=lambda r: (-(r[1] & 0xF0), r[0]))
             chosen_ordinal, chosen_mask = sorted_results[0]
             accented = place_accent(word, chosen_ordinal)
@@ -276,6 +298,7 @@ class Accentor:
                 "source_mask": chosen_mask,
                 "alternatives": alternatives,
                 "status": "homograph_flagged",
+                "disambiguation": "priority_fallback",
                 "line": line,
                 "column": col,
             }

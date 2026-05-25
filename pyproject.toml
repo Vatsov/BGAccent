@@ -15,6 +15,9 @@ dependencies = [
     "rich>=13",
 ]
 
+[project.optional-dependencies]
+nlp = ["spacy>=3.7"]
+
 [project.scripts]
 bgaccent = "bgaccent.cli:app"
 
@@ -30,7 +33,7 @@ warn_return_any = true
 warn_unused_configs = true
 
 [[tool.mypy.overrides]]
-module = ["marisa_trie", "bgaccent_data_full_gpl"]
+module = ["marisa_trie", "bgaccent_data_full_gpl", "spacy", "spacy.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
