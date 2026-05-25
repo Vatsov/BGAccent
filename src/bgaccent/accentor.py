@@ -8,6 +8,7 @@ import marisa_trie
 from bgaccent.custom import CustomDict
 from bgaccent.disambiguator import HomographDisambiguator
 from bgaccent.morphology import SuffixStripper, morphology_lookup, transfer_stress
+from bgaccent.ngram_predictor import StressPredictor
 from bgaccent.report import AccentResult, AccentStats, detect_script
 from bgaccent.tokenizer import Token, detokenize, tokenize
 from bgaccent.unicode import (
@@ -29,6 +30,7 @@ class Accentor:
         custom_dicts: list[Path] | None = None,
         mode: Mode = "preserve",
         disambiguator_model: Any = None,
+        enable_prediction: bool = False,
     ) -> None:
         if not trie_path.exists():
             raise FileNotFoundError(f"Trie file not found: {trie_path}")
@@ -39,6 +41,9 @@ class Accentor:
         self._mode = mode
         self._stripper = SuffixStripper()
         self._disambiguator = HomographDisambiguator(spacy_model=disambiguator_model)
+        self._predictor: StressPredictor | None = (
+            StressPredictor(self._trie) if enable_prediction else None
+        )
 
     def accent(self, text: str) -> str:
         return self.accent_with_report(text).text
@@ -101,6 +106,9 @@ class Accentor:
                 elif status == "morphological_match":
                     stats.accented_tokens += 1
                     stats.morphological_matches += 1
+                elif status == "predicted":
+                    stats.accented_tokens += 1
+                    stats.predicted += 1
                 elif status == "custom_override":
                     stats.accented_tokens += 1
                     stats.custom_overrides += 1
@@ -257,6 +265,21 @@ class Accentor:
                         "base_form": base_form,
                         "suffix_stripped": suffix_stripped,
                         "status": "morphological_match",
+                        "line": line,
+                        "column": col,
+                    }
+            if self._predictor is not None:
+                prediction = self._predictor.predict(clean)
+                if prediction is not None:
+                    pred_ordinal, pred_confidence = prediction
+                    accented = place_accent(word, pred_ordinal)
+                    suffix_len = min(6, len(clean))
+                    return accented, {
+                        "word": word,
+                        "accented": accented,
+                        "prediction_confidence": round(pred_confidence, 3),
+                        "matching_suffix": clean[-suffix_len:],
+                        "status": "predicted",
                         "line": line,
                         "column": col,
                     }

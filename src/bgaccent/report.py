@@ -15,6 +15,7 @@ class AccentStats:
     homographs_flagged: int = 0
     custom_overrides: int = 0
     morphological_matches: int = 0
+    predicted: int = 0
 
 
 _LATIN_RE = re.compile(r"^[a-zA-Z\-]+$")
@@ -47,6 +48,7 @@ class AccentResult:
                 "homographs_flagged": self.stats.homographs_flagged,
                 "custom_overrides": self.stats.custom_overrides,
                 "morphological_matches": self.stats.morphological_matches,
+                "predicted": self.stats.predicted,
             },
             "oov_words": self.oov_words,
             "homographs": self.homographs,
