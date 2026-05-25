@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 import sys
 import unicodedata
 from datetime import UTC, datetime
@@ -151,6 +152,241 @@ def build_trie(
     )
 
 
+def parse_bgospodinov_db(db_path: Path) -> list[tuple[str, int, int]]:
+    """Parse bgospodinov SQLite database with backtick stress encoding."""
+    entries: list[tuple[str, int, int]] = []
+    conn = sqlite3.connect(str(db_path))
+
+    cursor = conn.execute(
+        "SELECT wordform, wordform_stressed FROM wordform "
+        "WHERE wordform_stressed IS NOT NULL"
+    )
+
+    for wordform, stressed in cursor:
+        wordform = unicodedata.normalize("NFC", wordform.strip())
+        stressed = stressed.strip()
+
+        backtick_pos = stressed.find("`")
+        if backtick_pos < 1:
+            continue
+
+        if stressed[backtick_pos - 1].lower() not in BULGARIAN_VOWELS:
+            print(
+                f"Warning: backtick not after vowel in '{wordform}', skipping",
+                file=sys.stderr,
+            )
+            continue
+
+        vowel_count = 0
+        for ch in stressed[:backtick_pos]:
+            if ch.lower() in BULGARIAN_VOWELS:
+                vowel_count += 1
+
+        if vowel_count == 0:
+            continue
+
+        entries.append((wordform.lower(), vowel_count - 1, 4))
+
+    conn.close()
+    return entries
+
+
+def parse_wiktionary_jsonl(jsonl_path: Path) -> list[tuple[str, int, int]]:
+    """Parse Wiktionary JSONL with U+0301 combining acute stress marks."""
+    entries: list[tuple[str, int, int]] = []
+    seen: set[tuple[str, int]] = set()
+
+    with jsonl_path.open(encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+
+            obj = json.loads(line)
+            if obj.get("lang_code") != "bg":
+                continue
+
+            forms: list[str] = []
+            word = obj.get("word", "")
+            if word:
+                forms.append(word)
+            for form_entry in obj.get("forms", []):
+                form_text = form_entry.get("form", "")
+                if form_text:
+                    forms.append(form_text)
+
+            for form in forms:
+                form = unicodedata.normalize("NFC", form)
+                if "́" not in form:
+                    continue
+
+                plain = form.replace("́", "")
+
+                vowel_count = 0
+                for ch in form:
+                    if ch == "́":
+                        break
+                    if ch.lower() in BULGARIAN_VOWELS:
+                        vowel_count += 1
+
+                if vowel_count == 0:
+                    continue
+
+                ordinal = vowel_count - 1
+                key = (plain.lower(), ordinal)
+                if key not in seen:
+                    seen.add(key)
+                    entries.append((plain.lower(), ordinal, 2))
+
+    return entries
+
+
+SOURCE_BITS: dict[str, int] = {
+    "bayganyu": 1,
+    "wiktionary": 2,
+    "bgospodinov": 4,
+}
+
+DEFAULT_PRIORITY = ["bgospodinov", "bayganyu", "wiktionary"]
+
+SOURCE_LICENSES: dict[str, str] = {
+    "bayganyu": "MIT",
+    "wiktionary": "CC-BY-SA",
+    "bgospodinov": "GPL-3.0",
+}
+
+MIT_COMPATIBLE_SOURCES = {"bayganyu", "wiktionary"}
+
+
+def merge_entries(
+    entries_by_source: dict[str, list[tuple[str, int, int]]],
+    priority: list[str] | None = None,
+) -> tuple[dict[str, list[tuple[int, int]]], list[str]]:
+    """Merge entries from multiple sources with conflict resolution.
+
+    Returns (word_variants, conflict_lines).
+    """
+    if priority is None:
+        priority = DEFAULT_PRIORITY
+
+    word_data: dict[str, dict[str, set[int]]] = {}
+    for source_name, source_entries in entries_by_source.items():
+        for word, ordinal, _ in source_entries:
+            word_data.setdefault(word, {}).setdefault(source_name, set()).add(ordinal)
+
+    result: dict[str, list[tuple[int, int]]] = {}
+    conflicts: list[str] = []
+
+    for word, sources in word_data.items():
+        if len(sources) == 1:
+            source_name = next(iter(sources))
+            bit = SOURCE_BITS.get(source_name, 0)
+            result[word] = [(o, bit) for o in sorted(sources[source_name])]
+            continue
+
+        all_ordinal_sets = list(sources.values())
+        if all(s == all_ordinal_sets[0] for s in all_ordinal_sets[1:]):
+            combined_mask = 0
+            for source_name in sources:
+                combined_mask |= SOURCE_BITS.get(source_name, 0)
+            result[word] = [(o, combined_mask) for o in sorted(all_ordinal_sets[0])]
+        else:
+            winner = None
+            for source_name in priority:
+                if source_name in sources:
+                    winner = source_name
+                    break
+
+            if winner is None:
+                continue
+
+            winning_ordinals = sources[winner]
+            entries_for_word: list[tuple[int, int]] = []
+            for ordinal in sorted(winning_ordinals):
+                mask = SOURCE_BITS.get(winner, 0)
+                for other_name, other_ordinals in sources.items():
+                    if other_name != winner and ordinal in other_ordinals:
+                        mask |= SOURCE_BITS.get(other_name, 0)
+                entries_for_word.append((ordinal, mask))
+            result[word] = entries_for_word
+
+            parts = []
+            for source_name in priority:
+                if source_name in sources:
+                    ords = ",".join(str(o) for o in sorted(sources[source_name]))
+                    parts.append(f"{source_name}={ords}")
+            conflicts.append(f"{word}: {', '.join(parts)}")
+
+    return result, conflicts
+
+
+def build_multi_source_trie(
+    sources_dir: Path,
+    output_path: Path,
+    license_filter: str = "mit",
+) -> None:
+    """Build trie from multiple sources with license filtering."""
+    allowed = MIT_COMPATIBLE_SOURCES if license_filter == "mit" else set(SOURCE_BITS.keys())
+
+    all_entries: dict[str, list[tuple[str, int, int]]] = {}
+
+    bayganyu_csv = sources_dir / "bayganyu.csv"
+    if bayganyu_csv.exists() and "bayganyu" in allowed:
+        all_entries["bayganyu"] = parse_bayganyu_csv(bayganyu_csv)
+
+    bgospodinov_db = sources_dir / "bgospodinov.db"
+    if bgospodinov_db.exists() and "bgospodinov" in allowed:
+        all_entries["bgospodinov"] = parse_bgospodinov_db(bgospodinov_db)
+
+    wiktionary_jsonl = sources_dir / "wiktionary.jsonl"
+    if wiktionary_jsonl.exists() and "wiktionary" in allowed:
+        all_entries["wiktionary"] = parse_wiktionary_jsonl(wiktionary_jsonl)
+
+    if not all_entries:
+        print("Error: no source data found", file=sys.stderr)
+        sys.exit(1)
+
+    word_variants, conflict_lines = merge_entries(all_entries)
+
+    if conflict_lines:
+        conflict_log = output_path.parent / "merge_conflicts.log"
+        conflict_log.write_text("\n".join(conflict_lines) + "\n", encoding="utf-8")
+
+    keys: list[str] = []
+    values: list[tuple[int, int]] = []
+    for word, variants in word_variants.items():
+        for ordinal, mask in variants:
+            keys.append(word)
+            values.append((ordinal, mask))
+
+    trie = marisa_trie.RecordTrie("HB", zip(keys, values, strict=True))
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    trie.save(str(output_path))
+
+    source_names = sorted(all_entries.keys())
+    licenses = [SOURCE_LICENSES[s] for s in source_names]
+    license_str = "+".join(licenses)
+
+    meta = {
+        "format_version": 1,
+        "record_format": "HB",
+        "vowel_indexing": "zero_based_vowel_ordinal",
+        "normalization": "NFC",
+        "sources": source_names,
+        "source_license": license_str,
+        "created_at": datetime.now(UTC).isoformat(),
+    }
+    meta_path = output_path.parent / (output_path.name + ".meta.json")
+    meta_path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
+
+    homographs = sum(1 for v in word_variants.values() if len(v) > 1)
+    print(
+        f"Built trie: {len(keys)} entries ({len(word_variants)} unique words, "
+        f"{homographs} homographs, {len(conflict_lines)} conflicts) at {output_path}"
+    )
+    print(f"Sources: {', '.join(source_names)} ({license_filter})")
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -158,11 +394,11 @@ if __name__ == "__main__":
     parser.add_argument("--sources-dir", type=Path, default=Path("./sources"))
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--allow-invalid-entries", action="store_true")
+    parser.add_argument("--license", choices=["mit", "gpl"], default="mit")
     args = parser.parse_args()
 
-    csv_file = args.sources_dir / "bayganyu.csv"
-    build_trie(
-        csv_file,
+    build_multi_source_trie(
+        args.sources_dir,
         args.out,
-        allow_invalid=args.allow_invalid_entries,
+        license_filter=args.license,
     )

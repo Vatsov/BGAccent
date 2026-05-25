@@ -27,6 +27,13 @@ def verify_checksum(file_path: Path, expected_sha256: str) -> None:
         )
 
 
+def should_skip(file_path: Path, expected_sha256: str) -> bool:
+    if not file_path.exists():
+        return False
+    actual = hashlib.sha256(file_path.read_bytes()).hexdigest()
+    return actual == expected_sha256
+
+
 def download_source(url: str, dest: Path) -> None:
     dest.parent.mkdir(parents=True, exist_ok=True)
     urllib.request.urlretrieve(url, str(dest))
@@ -39,14 +46,17 @@ def main(lock_path: Path, output_dir: Path) -> None:
     for source_name, info in sources.items():
         url = info["url"]
         expected_sha256 = info["sha256"]
-        dest = output_dir / f"{source_name}.csv"
+        filename = info.get("filename", f"{source_name}.csv")
+        dest = output_dir / filename
+
+        if should_skip(dest, expected_sha256):
+            print(f"Skipping {source_name}: already present with matching checksum")
+            continue
 
         print(f"Downloading {source_name} from {url}...")
         download_source(url, dest)
         verify_checksum(dest, expected_sha256)
         print(f"  Checksum verified: {expected_sha256}")
-
-        info["downloaded_at"] = str(dest)
 
 
 if __name__ == "__main__":
