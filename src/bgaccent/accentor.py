@@ -1,29 +1,19 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import marisa_trie
 
 from bgaccent.custom import CustomDict
+from bgaccent.report import AccentResult, AccentStats, detect_script
 from bgaccent.tokenizer import Token, detokenize, tokenize
 from bgaccent.unicode import (
     count_vowels,
-    is_monosyllabic,
     normalize,
     place_accent,
     strip_accents,
 )
-
-
-@dataclass
-class AccentResult:
-    text: str
-    stats: dict[str, int] = field(default_factory=dict)
-    oov_words: list[str] = field(default_factory=list)
-    homographs: list[str] = field(default_factory=list)
-    custom_overrides: list[str] = field(default_factory=list)
-    details: list[dict[str, object]] = field(default_factory=list)
 
 
 class Accentor:
@@ -47,13 +37,19 @@ class Accentor:
         normalized = normalize(text)
         tokens = tokenize(normalized)
         result_tokens: list[Token] = []
+        stats = AccentStats()
+        details: list[dict[str, Any]] = []
+        oov_seen: set[str] = set()
+        oov_words: list[str] = []
 
         for token in tokens:
             if token.kind != "word":
                 result_tokens.append(token)
                 continue
 
-            accented = self._process_word_token(token)
+            stats.total_tokens += 1
+            accented, detail = self._process_word_token(token)
+
             result_tokens.append(Token(
                 kind=token.kind,
                 text=accented,
@@ -62,15 +58,115 @@ class Accentor:
                 col=token.col,
             ))
 
-        return AccentResult(text=detokenize(result_tokens))
+            if detail is not None:
+                details.append(detail)
+                status = detail["status"]
+                if status == "accented":
+                    stats.accented_tokens += 1
+                elif status == "oov":
+                    stats.oov_multisyllabic += 1
+                    word = detail["word"]
+                    assert isinstance(word, str)
+                    if word not in oov_seen:
+                        oov_seen.add(word)
+                        oov_words.append(word)
+                elif status == "skipped_monosyllabic":
+                    stats.skipped_monosyllabic += 1
 
-    def _process_word_token(self, token: Token) -> str:
+        return AccentResult(
+            text=detokenize(result_tokens),
+            stats=stats,
+            oov_words=oov_words,
+            details=details,
+        )
+
+    def _process_word_token(
+        self, token: Token
+    ) -> tuple[str, dict[str, Any] | None]:
         word = token.text
 
         if "-" in word:
-            return self._process_hyphenated(word)
+            accented = self._process_hyphenated(word)
+            if accented != word:
+                return accented, {
+                    "word": word,
+                    "accented": accented,
+                    "status": "accented",
+                    "line": token.line,
+                    "column": token.col,
+                }
+            return accented, None
 
-        return self._accent_single_word(word)
+        return self._accent_single_word_with_detail(word, token.line, token.col)
+
+    def _accent_single_word_with_detail(
+        self, word: str, line: int, col: int
+    ) -> tuple[str, dict[str, Any] | None]:
+        clean = strip_accents(word)
+
+        vowel_count = count_vowels(clean)
+        if vowel_count == 0:
+            return word, {
+                "word": word,
+                "status": "oov",
+                "script": detect_script(word),
+                "line": line,
+                "column": col,
+            }
+
+        if vowel_count <= 1:
+            if self._mark_monosyllables and vowel_count == 1:
+                accented = place_accent(word, 0)
+                return accented, {
+                    "word": word,
+                    "accented": accented,
+                    "status": "accented",
+                    "line": line,
+                    "column": col,
+                }
+            return word, {
+                "word": word,
+                "status": "skipped_monosyllabic",
+                "line": line,
+                "column": col,
+            }
+
+        lookup_key = clean.lower()
+
+        custom_entry = self._custom.lookup(lookup_key)
+        if custom_entry is not None:
+            accented = place_accent(word, custom_entry.vowel_index)
+            return accented, {
+                "word": word,
+                "accented": accented,
+                "source": "custom",
+                "status": "accented",
+                "line": line,
+                "column": col,
+            }
+
+        results = self._trie.get(lookup_key)
+
+        if not results:
+            return word, {
+                "word": word,
+                "status": "oov",
+                "script": detect_script(word),
+                "line": line,
+                "column": col,
+            }
+
+        vowel_ordinal, source_mask = results[0]
+        accented = place_accent(word, vowel_ordinal)
+        return accented, {
+            "word": word,
+            "accented": accented,
+            "source": "bayganyu",
+            "source_mask": source_mask,
+            "status": "accented",
+            "line": line,
+            "column": col,
+        }
 
     def _process_hyphenated(self, word: str) -> str:
         lookup_key = strip_accents(word).lower()
@@ -85,27 +181,6 @@ class Accentor:
             if part.isdigit():
                 accented_parts.append(part)
             else:
-                accented_parts.append(self._accent_single_word(part))
+                accented, _detail = self._accent_single_word_with_detail(part, 0, 0)
+                accented_parts.append(accented)
         return "-".join(accented_parts)
-
-    def _accent_single_word(self, word: str) -> str:
-        clean = strip_accents(word)
-
-        if is_monosyllabic(clean):
-            if self._mark_monosyllables and count_vowels(clean) == 1:
-                return place_accent(word, 0)
-            return word
-
-        lookup_key = clean.lower()
-
-        custom_entry = self._custom.lookup(lookup_key)
-        if custom_entry is not None:
-            return place_accent(word, custom_entry.vowel_index)
-
-        results = self._trie.get(lookup_key)
-
-        if not results:
-            return word
-
-        vowel_ordinal, _source_mask = results[0]
-        return place_accent(word, vowel_ordinal)
