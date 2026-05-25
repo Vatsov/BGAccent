@@ -1,5 +1,9 @@
 # BGAccent
 
+<p align="center">
+  <img src="assets/hero.png" alt="BGAccent — Bulgarian text accent placement" width="100%">
+</p>
+
 Bulgarian text accent placement engine for pre-TTS quality assurance.
 
 Normalizes, analyzes, and marks lexical stress in Bulgarian text via dictionary lookup and rule-based fallbacks, with OOV reporting and custom dictionary support.
