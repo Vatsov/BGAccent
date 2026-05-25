@@ -75,6 +75,9 @@ ENTRIES: list[tuple[str, int, int]] = [
     ("страна", 1, 1),
     ("стара", 1, 1),
     ("нова", 1, 1),
+    # Homograph: "замък" with two stress positions
+    ("замък", 0, 1),
+    ("замък", 1, 1),
 ]
 
 

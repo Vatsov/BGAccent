@@ -1,3 +1,4 @@
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -6,12 +7,38 @@ dist/
 build/
 .eggs/
 *.egg
+
+# Virtual environments
+.venv/
+.env/
+
+# Type checking / linting / testing
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
-.venv/
+.coverage
+htmlcov/
+
+# Data / build artifacts
 *.marisa
 !tests/fixtures/*.marisa
 sources/
-*.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Claude Code
+.claude/
+
+# Project docs (local only)
+docs/
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Logs
+*.log

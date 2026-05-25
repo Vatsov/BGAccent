@@ -36,10 +36,10 @@ _ABBREV_PATTERN = "|".join(re.escape(a) for a in sorted(_ABBREVS, key=len, rever
 
 _TOKEN_RE = re.compile(
     r"(?P<abbrev>" + _ABBREV_PATTERN + r")"
-    r"|(?P<word>(?=\S*[a-zA-ZЀ-ӿ])(?:[\wЀ-ӿ]+-)*[\wЀ-ӿ]+)"
+    r"|(?P<word>(?=\S*[a-zA-ZЀ-ӿ])(?:[\wЀ-ӿ̀-ͯ]+-)*[\wЀ-ӿ̀-ͯ]+)"
     r"|(?P<number>\d+)"
     r"|(?P<space>\s+)"
-    r"|(?P<punct>[^\w\sЀ-ӿ])"
+    r"|(?P<punct>[^\w\sЀ-ӿ̀-ͯ])"
     r"|(?P<other>.)",
     re.UNICODE,
 )
