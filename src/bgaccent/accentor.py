@@ -8,6 +8,7 @@ import marisa_trie
 from bgaccent.custom import CustomDict
 from bgaccent.disambiguator import HomographDisambiguator
 from bgaccent.morphology import SuffixStripper, morphology_lookup, transfer_stress
+from bgaccent.neural_predictor import NeuralStressPredictor
 from bgaccent.ngram_predictor import StressPredictor
 from bgaccent.report import AccentResult, AccentStats, detect_script
 from bgaccent.tokenizer import Token, detokenize, tokenize
@@ -31,6 +32,8 @@ class Accentor:
         mode: Mode = "preserve",
         disambiguator_model: Any = None,
         enable_prediction: bool = False,
+        neural_model_path: Path | None = None,
+        neural_vocab_path: Path | None = None,
     ) -> None:
         if not trie_path.exists():
             raise FileNotFoundError(f"Trie file not found: {trie_path}")
@@ -43,6 +46,11 @@ class Accentor:
         self._disambiguator = HomographDisambiguator(spacy_model=disambiguator_model)
         self._predictor: StressPredictor | None = (
             StressPredictor(self._trie) if enable_prediction else None
+        )
+        self._neural: NeuralStressPredictor | None = (
+            NeuralStressPredictor(neural_model_path, neural_vocab_path)
+            if neural_model_path is not None and neural_vocab_path is not None
+            else None
         )
 
     def accent(self, text: str) -> str:
@@ -106,6 +114,9 @@ class Accentor:
                 elif status == "morphological_match":
                     stats.accented_tokens += 1
                     stats.morphological_matches += 1
+                elif status == "neural_predicted":
+                    stats.accented_tokens += 1
+                    stats.neural_predicted += 1
                 elif status == "predicted":
                     stats.accented_tokens += 1
                     stats.predicted += 1
@@ -265,6 +276,20 @@ class Accentor:
                         "base_form": base_form,
                         "suffix_stripped": suffix_stripped,
                         "status": "morphological_match",
+                        "line": line,
+                        "column": col,
+                    }
+            if self._neural is not None:
+                neural_result = self._neural.predict(clean)
+                if neural_result is not None:
+                    n_ordinal, n_conf = neural_result
+                    accented = place_accent(word, n_ordinal)
+                    return accented, {
+                        "word": word,
+                        "accented": accented,
+                        "prediction_confidence": round(n_conf, 3),
+                        "prediction_method": "neural",
+                        "status": "neural_predicted",
                         "line": line,
                         "column": col,
                     }

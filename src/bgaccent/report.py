@@ -16,6 +16,7 @@ class AccentStats:
     custom_overrides: int = 0
     morphological_matches: int = 0
     predicted: int = 0
+    neural_predicted: int = 0
 
 
 _LATIN_RE = re.compile(r"^[a-zA-Z\-]+$")
@@ -49,6 +50,7 @@ class AccentResult:
                 "custom_overrides": self.stats.custom_overrides,
                 "morphological_matches": self.stats.morphological_matches,
                 "predicted": self.stats.predicted,
+                "neural_predicted": self.stats.neural_predicted,
             },
             "oov_words": self.oov_words,
             "homographs": self.homographs,
