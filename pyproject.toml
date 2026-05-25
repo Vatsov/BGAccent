@@ -17,6 +17,7 @@ dependencies = [
 
 [project.optional-dependencies]
 nlp = ["spacy>=3.7"]
+train = ["torch>=2.0", "onnx>=1.14", "onnxruntime>=1.16"]
 
 [project.scripts]
 bgaccent = "bgaccent.cli:app"
@@ -33,7 +34,7 @@ warn_return_any = true
 warn_unused_configs = true
 
 [[tool.mypy.overrides]]
-module = ["marisa_trie", "bgaccent_data_full_gpl", "spacy", "spacy.*"]
+module = ["marisa_trie", "bgaccent_data_full_gpl", "spacy", "spacy.*", "torch", "torch.*", "onnx", "onnx.*", "onnxruntime", "onnxruntime.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
