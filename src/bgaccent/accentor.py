@@ -6,6 +6,7 @@ from typing import Any, Literal
 import marisa_trie
 
 from bgaccent.custom import CustomDict
+from bgaccent.morphology import SuffixStripper, morphology_lookup, transfer_stress
 from bgaccent.report import AccentResult, AccentStats, detect_script
 from bgaccent.tokenizer import Token, detokenize, tokenize
 from bgaccent.unicode import (
@@ -34,6 +35,7 @@ class Accentor:
         self._mark_monosyllables = mark_monosyllables
         self._custom = CustomDict.from_paths(custom_dicts) if custom_dicts else CustomDict()
         self._mode = mode
+        self._stripper = SuffixStripper()
 
     def accent(self, text: str) -> str:
         return self.accent_with_report(text).text
@@ -91,6 +93,9 @@ class Accentor:
                     if word not in homograph_seen:
                         homograph_seen.add(word)
                         homographs.append(word)
+                elif status == "morphological_match":
+                    stats.accented_tokens += 1
+                    stats.morphological_matches += 1
                 elif status == "custom_override":
                     stats.accented_tokens += 1
                     stats.custom_overrides += 1
@@ -233,6 +238,21 @@ class Accentor:
         results = self._trie.get(lookup_key)
 
         if not results:
+            morph = morphology_lookup(clean, self._trie, self._stripper)
+            if morph is not None:
+                base_ordinal, base_form, suffix_stripped = morph
+                transferred = transfer_stress(base_ordinal, base_form, word)
+                if transferred is not None:
+                    accented = place_accent(word, transferred)
+                    return accented, {
+                        "word": word,
+                        "accented": accented,
+                        "base_form": base_form,
+                        "suffix_stripped": suffix_stripped,
+                        "status": "morphological_match",
+                        "line": line,
+                        "column": col,
+                    }
             return word, {
                 "word": word,
                 "status": "oov",
