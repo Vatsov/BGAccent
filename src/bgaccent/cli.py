@@ -89,6 +89,10 @@ def main(
         Path | None,
         typer.Option("--out-dir", help="Output directory for batch processing"),
     ] = None,
+    output_format: Annotated[
+        str,
+        typer.Option("--format", help="Output format: text or ssml"),
+    ] = "text",
 ) -> None:
     if mode not in SUPPORTED_MODES:
         typer.echo(f"Error: --mode must be one of {SUPPORTED_MODES}", err=True)
@@ -161,11 +165,17 @@ def main(
         _handle_unknown_only(result)
         return
 
+    final_text = result.text
+    if output_format == "ssml":
+        from bgaccent.ssml import format_ssml
+
+        final_text = format_ssml(result.text)
+
     if output:
-        output.write_text(result.text, encoding="utf-8")
+        output.write_text(final_text, encoding="utf-8")
         _write_log(output, result, quiet)
     else:
-        typer.echo(result.text, nl=False)
+        typer.echo(final_text, nl=False)
 
 
 def _handle_batch(
