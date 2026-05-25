@@ -52,7 +52,8 @@ class TestSourcesLock:
 class TestBayganyuCSVParsing:
     def test_parse_stress_position(self, tmp_path: Path) -> None:
         csv = tmp_path / "bg.csv"
-        csv.write_text("планината,плани'ната\n", encoding="utf-8")
+        # apostrophe BEFORE stressed vowel: plan'inata = stress on и (2nd vowel)
+        csv.write_text("планината,план'ината\n", encoding="utf-8")
         entries = parse_bayganyu_csv(csv)
         assert len(entries) == 1
         assert entries[0][0] == "планината"
@@ -60,7 +61,7 @@ class TestBayganyuCSVParsing:
 
     def test_nfc_normalization(self, tmp_path: Path) -> None:
         csv = tmp_path / "bg.csv"
-        csv.write_text("красива,краси'ва\n", encoding="utf-8")
+        csv.write_text("красива,крас'ива\n", encoding="utf-8")
         entries = parse_bayganyu_csv(csv)
         assert len(entries) == 1
         import unicodedata
@@ -69,7 +70,7 @@ class TestBayganyuCSVParsing:
 
     def test_meta_json_generated(self, tmp_path: Path) -> None:
         csv = tmp_path / "bg.csv"
-        csv.write_text("планината,плани'ната\n", encoding="utf-8")
+        csv.write_text("планината,план'ината\n", encoding="utf-8")
         out = tmp_path / "output.marisa"
         build_trie(csv, out, source_name="bayganyu", source_commit="abc")
         meta_path = out.parent / (out.name + ".meta.json")
@@ -81,7 +82,7 @@ class TestBayganyuCSVParsing:
 
     def test_built_trie_lookup(self, tmp_path: Path) -> None:
         csv = tmp_path / "bg.csv"
-        csv.write_text("планината,плани'ната\n", encoding="utf-8")
+        csv.write_text("планината,план'ината\n", encoding="utf-8")
         out = tmp_path / "output.marisa"
         build_trie(csv, out, source_name="bayganyu", source_commit="abc")
         trie: marisa_trie.RecordTrie[tuple[int, int]] = marisa_trie.RecordTrie("HB")
@@ -94,13 +95,14 @@ class TestBayganyuCSVParsing:
 class TestBuildSafety:
     def test_invalid_entry_stress_on_non_vowel(self, tmp_path: Path) -> None:
         csv = tmp_path / "bg.csv"
-        csv.write_text("тест,т'ест\n", encoding="utf-8")
+        # apostrophe before т (non-vowel)
+        csv.write_text("тест,тес'т\n", encoding="utf-8")
         with pytest.raises(SystemExit):
             build_trie(csv, tmp_path / "out.marisa", source_name="test", source_commit="x")
 
     def test_allow_invalid_entries(self, tmp_path: Path) -> None:
         csv = tmp_path / "bg.csv"
-        csv.write_text("тест,т'ест\nпланината,плани'ната\n", encoding="utf-8")
+        csv.write_text("тест,тес'т\nпланината,план'ината\n", encoding="utf-8")
         out = tmp_path / "out.marisa"
         build_trie(
             csv, out, source_name="test", source_commit="x", allow_invalid=True
@@ -111,7 +113,8 @@ class TestBuildSafety:
 
     def test_homograph_all_variants_kept(self, tmp_path: Path) -> None:
         csv = tmp_path / "bg.csv"
-        csv.write_text("замък,за'мък\nзамък,замъ'к\n", encoding="utf-8")
+        # stress on а (idx 0) vs ъ (idx 1)
+        csv.write_text("замък,з'амък\nзамък,зам'ък\n", encoding="utf-8")
         out = tmp_path / "out.marisa"
         build_trie(csv, out, source_name="test", source_commit="x")
         trie: marisa_trie.RecordTrie[tuple[int, int]] = marisa_trie.RecordTrie("HB")
@@ -123,7 +126,7 @@ class TestBuildSafety:
 
     def test_homograph_log(self, tmp_path: Path) -> None:
         csv = tmp_path / "bg.csv"
-        csv.write_text("замък,за'мък\nзамък,замъ'к\n", encoding="utf-8")
+        csv.write_text("замък,з'амък\nзамък,зам'ък\n", encoding="utf-8")
         out = tmp_path / "out.marisa"
         build_trie(csv, out, source_name="test", source_commit="x")
         log = tmp_path / "build_homographs.log"

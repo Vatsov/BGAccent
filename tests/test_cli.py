@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
-from unittest.mock import patch
 
+import pytest
 from typer.testing import CliRunner
 
 from bgaccent.cli import app
@@ -132,24 +132,20 @@ class TestCoreFlags:
 
 class TestDataLoader:
     def test_meta_json_bad_version(self, tmp_path: Path) -> None:
-        trie_file = tmp_path / "bg.marisa"
-        trie_file.write_bytes(b"dummy")
         meta = tmp_path / "bg.marisa.meta.json"
         meta.write_text(
             json.dumps({"format_version": 99}), encoding="utf-8"
         )
-        with patch(
-            "bgaccent.data._BUNDLED_TRIE", trie_file
-        ), patch("bgaccent.data._META_PATH", meta):
-            import importlib
+        from bgaccent.data import _validate_meta
 
-            import bgaccent.data
+        with pytest.raises(ValueError, match="Unsupported"):
+            _validate_meta(meta)
 
-            importlib.reload(bgaccent.data)
-            from bgaccent.data import get_trie_path
+    def test_meta_json_good_version(self, tmp_path: Path) -> None:
+        meta = tmp_path / "bg.marisa.meta.json"
+        meta.write_text(
+            json.dumps({"format_version": 1}), encoding="utf-8"
+        )
+        from bgaccent.data import _validate_meta
 
-            try:
-                get_trie_path()
-                raise AssertionError("Should have raised")
-            except (ValueError, FileNotFoundError):
-                pass
+        _validate_meta(meta)

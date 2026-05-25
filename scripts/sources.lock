@@ -1,0 +1,8 @@
+{
+  "bayganyu": {
+    "url": "https://raw.githubusercontent.com/bayganyu/bulgarian-dictionary/122bdf2a7dca9411d6e2370af38c3304e98ffcbe/dictionary.csv",
+    "commit": "122bdf2a7dca9411d6e2370af38c3304e98ffcbe",
+    "sha256": "9e69acfddb9aa45ce9088589e47f123fbb45a2ad9aa38935b578811fe4a466cf",
+    "license": "MIT"
+  }
+}

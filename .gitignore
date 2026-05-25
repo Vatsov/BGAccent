@@ -22,6 +22,7 @@ htmlcov/
 # Data / build artifacts
 *.marisa
 !tests/fixtures/*.marisa
+!src/bgaccent/data/bg.marisa
 sources/
 
 # IDE
@@ -32,6 +33,7 @@ sources/
 
 # Claude Code
 .claude/
+CLAUDE.md
 
 # Project docs (local only)
 docs/

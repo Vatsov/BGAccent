@@ -1,0 +1,10 @@
+{
+  "format_version": 1,
+  "record_format": "HB",
+  "vowel_indexing": "zero_based_vowel_ordinal",
+  "normalization": "NFC",
+  "source": "bayganyu",
+  "source_commit": "122bdf2a7dca9411d6e2370af38c3304e98ffcbe",
+  "source_license": "MIT",
+  "created_at": "2026-05-25T07:22:42.874964+00:00"
+}

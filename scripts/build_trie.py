@@ -15,11 +15,12 @@ BULGARIAN_VOWELS = frozenset("аеиоуъяюАЕИОУЪЯЮ")
 
 def parse_bayganyu_csv(csv_path: Path) -> list[tuple[str, int, int]]:
     entries: list[tuple[str, int, int]] = []
-    invalid_count = 0
 
-    for line_num, raw_line in enumerate(
-        csv_path.read_text(encoding="utf-8-sig").splitlines(), start=1
-    ):
+    lines = csv_path.read_text(encoding="utf-8-sig").splitlines()
+    first_line = lines[0].strip() if lines else ""
+    start_idx = 1 if first_line.startswith("word") else 0
+
+    for line_num, raw_line in enumerate(lines[start_idx:], start=start_idx + 1):
         line = raw_line.strip()
         if not line or line.startswith("#"):
             continue
@@ -27,34 +28,37 @@ def parse_bayganyu_csv(csv_path: Path) -> list[tuple[str, int, int]]:
         parts = line.split(",")
         if len(parts) < 2:
             print(f"Warning: {csv_path}:{line_num}: malformed line, skipping", file=sys.stderr)
-            invalid_count += 1
             continue
 
         base_word = unicodedata.normalize("NFC", parts[0].strip())
-        stressed_form = parts[-1].strip()
+        stressed_form = parts[1].strip()
 
-        apos_pos = stressed_form.find("'")
-        if apos_pos < 1:
-            print(
-                f"Warning: {csv_path}:{line_num}: no apostrophe found, skipping",
-                file=sys.stderr,
-            )
-            invalid_count += 1
+        if not stressed_form:
             continue
 
-        stressed_char = stressed_form[apos_pos - 1]
+        apos_pos = stressed_form.find("'")
+        if apos_pos < 0:
+            continue
+
+        if apos_pos + 1 >= len(stressed_form):
+            print(
+                f"Warning: {csv_path}:{line_num}: apostrophe at end of word, skipping",
+                file=sys.stderr,
+            )
+            continue
+
+        stressed_char = stressed_form[apos_pos + 1]
         if stressed_char.lower() not in BULGARIAN_VOWELS:
             print(
                 f"Warning: {csv_path}:{line_num}: stress on non-vowel '{stressed_char}', skipping",
                 file=sys.stderr,
             )
-            invalid_count += 1
             continue
 
         clean = stressed_form.replace("'", "")
         clean = unicodedata.normalize("NFC", clean)
         vowel_index = 0
-        for ch in clean[: apos_pos - 1]:
+        for ch in clean[:apos_pos]:
             if ch.lower() in BULGARIAN_VOWELS:
                 vowel_index += 1
 
@@ -67,7 +71,6 @@ def parse_bayganyu_csv(csv_path: Path) -> list[tuple[str, int, int]]:
                 f"({nfc_vowels} vs {nfd_vowels}), skipping",
                 file=sys.stderr,
             )
-            invalid_count += 1
             continue
 
         entries.append((base_word.lower(), vowel_index, 1))
