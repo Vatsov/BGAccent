@@ -5,6 +5,7 @@ from pathlib import Path
 
 import marisa_trie
 
+from bgaccent.custom import CustomDict
 from bgaccent.tokenizer import Token, detokenize, tokenize
 from bgaccent.unicode import (
     count_vowels,
@@ -30,12 +31,14 @@ class Accentor:
         self,
         trie_path: Path,
         mark_monosyllables: bool = False,
+        custom_dicts: list[Path] | None = None,
     ) -> None:
         if not trie_path.exists():
             raise FileNotFoundError(f"Trie file not found: {trie_path}")
         self._trie: marisa_trie.RecordTrie[tuple[int, int]] = marisa_trie.RecordTrie("HB")
         self._trie.load(str(trie_path))
         self._mark_monosyllables = mark_monosyllables
+        self._custom = CustomDict.from_paths(custom_dicts) if custom_dicts else CustomDict()
 
     def accent(self, text: str) -> str:
         return self.accent_with_report(text).text
@@ -94,6 +97,11 @@ class Accentor:
             return word
 
         lookup_key = clean.lower()
+
+        custom_entry = self._custom.lookup(lookup_key)
+        if custom_entry is not None:
+            return place_accent(word, custom_entry.vowel_index)
+
         results = self._trie.get(lookup_key)
 
         if not results:
