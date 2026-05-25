@@ -85,6 +85,10 @@ def main(
         bool,
         typer.Option("--unknown-only", help="Output OOV words only, one per line"),
     ] = False,
+    out_dir: Annotated[
+        Path | None,
+        typer.Option("--out-dir", help="Output directory for batch processing"),
+    ] = None,
 ) -> None:
     if mode not in SUPPORTED_MODES:
         typer.echo(f"Error: --mode must be one of {SUPPORTED_MODES}", err=True)
@@ -99,6 +103,23 @@ def main(
         except FileNotFoundError as exc:
             typer.echo(f"Error: {exc}", err=True)
             raise typer.Exit(code=1) from exc
+
+    if input_arg is not None and Path(input_arg).is_dir():
+        _handle_batch(
+            input_dir=Path(input_arg),
+            out_dir=out_dir,
+            trie_path=trie_path,
+            mark_monosyllables=mark_monosyllables,
+            custom_dicts=list(custom) if custom else None,
+            mode=mode,
+            report_path=report,
+            check=check,
+            fail_on_oov=fail_on_oov,
+            fail_on_homographs=fail_on_homographs,
+            max_oov_rate=max_oov_rate,
+            quiet=quiet,
+        )
+        return
 
     try:
         text = _read_input(input_arg)
@@ -145,6 +166,113 @@ def main(
         _write_log(output, result, quiet)
     else:
         typer.echo(result.text, nl=False)
+
+
+def _handle_batch(
+    input_dir: Path,
+    out_dir: Path | None,
+    trie_path: Path,
+    mark_monosyllables: bool,
+    custom_dicts: list[Path] | None,
+    mode: str,
+    report_path: Path | None,
+    check: bool,
+    fail_on_oov: bool,
+    fail_on_homographs: bool,
+    max_oov_rate: float | None,
+    quiet: bool,
+) -> None:
+    from bgaccent.report import AccentResult, AccentStats
+
+    txt_files = sorted(input_dir.glob("*.txt"))
+    if not txt_files:
+        if not quiet:
+            typer.echo("Warning: no .txt files found in input directory", err=True)
+        raise typer.Exit(code=0)
+
+    acc = Accentor(
+        trie_path=trie_path,
+        mark_monosyllables=mark_monosyllables,
+        custom_dicts=custom_dicts,
+        mode=mode,  # type: ignore[arg-type]
+    )
+
+    if out_dir is not None:
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+    report_dir: Path | None = None
+    if report_path is not None:
+        report_dir = report_path
+        report_dir.mkdir(parents=True, exist_ok=True)
+
+    total_stats = AccentStats()
+    all_oov: list[str] = []
+    oov_seen: set[str] = set()
+    all_homographs: list[str] = []
+    hom_seen: set[str] = set()
+    per_file: list[dict[str, object]] = []
+
+    for txt_file in txt_files:
+        if not quiet:
+            typer.echo(f"Processing {txt_file.name}...", err=True)
+
+        text = txt_file.read_text(encoding="utf-8-sig")
+        result = acc.accent_with_report(text)
+
+        if out_dir is not None and not check:
+            (out_dir / txt_file.name).write_text(result.text, encoding="utf-8")
+            _write_log(out_dir / txt_file.name, result, quiet)
+
+        if report_dir is not None:
+            report_file = report_dir / txt_file.with_suffix(".json").name
+            report_file.write_text(
+                json.dumps(result.to_dict(), ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+
+        s = result.stats
+        total_stats.total_tokens += s.total_tokens
+        total_stats.accented_tokens += s.accented_tokens
+        total_stats.oov_multisyllabic += s.oov_multisyllabic
+        total_stats.skipped_monosyllabic += s.skipped_monosyllabic
+        total_stats.already_accented += s.already_accented
+        total_stats.homographs_flagged += s.homographs_flagged
+        total_stats.custom_overrides += s.custom_overrides
+        total_stats.morphological_matches += s.morphological_matches
+        total_stats.predicted += s.predicted
+
+        for w in result.oov_words:
+            if w not in oov_seen:
+                oov_seen.add(w)
+                all_oov.append(w)
+        for h in result.homographs:
+            if h not in hom_seen:
+                hom_seen.add(h)
+                all_homographs.append(h)
+
+        per_file.append({"file": txt_file.name, "stats": result.to_dict()["stats"]})
+
+    if report_dir is not None:
+        summary = {
+            "total": {
+                "total_tokens": total_stats.total_tokens,
+                "accented_tokens": total_stats.accented_tokens,
+                "oov_multisyllabic": total_stats.oov_multisyllabic,
+                "homographs_flagged": total_stats.homographs_flagged,
+            },
+            "oov_words": all_oov,
+            "homographs": all_homographs,
+            "per_file": per_file,
+        }
+        (report_dir / "summary.json").write_text(
+            json.dumps(summary, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    if check:
+        agg = AccentResult(text="", stats=total_stats, oov_words=all_oov, homographs=all_homographs)
+        _handle_check(agg, fail_on_oov, fail_on_homographs, max_oov_rate, quiet)
+        return
 
 
 def _handle_check(
