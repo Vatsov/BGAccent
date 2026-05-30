@@ -26,7 +26,11 @@ bgaccent = "bgaccent.cli:app"
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+# RUF100 = no unused/stale `# noqa`; PGH004 = no blanket (uncoded) `# noqa`.
+# Together they keep suppressions honest: every `# noqa` must name a real,
+# currently-firing rule. Code around the lint (e.g. lazy imports in fixtures)
+# rather than blanket-silencing it.
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF100", "PGH004"]
 
 [tool.mypy]
 strict = true
