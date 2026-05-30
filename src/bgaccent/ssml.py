@@ -44,10 +44,9 @@ def to_ipa(word: str, stress_vowel_index: int) -> str:
 
 
 def format_ssml(text: str) -> str:
-    def _replace(m: re.Match[str]) -> str:
-        token = m.group(1)
+    def _render_word(token: str) -> str:
         if COMBINING_ACUTE not in token:
-            return token
+            return escape(token)
         clean = token.replace(COMBINING_ACUTE, "")
         vowel_idx = 0
         for ch in token:
@@ -62,4 +61,8 @@ def format_ssml(text: str) -> str:
             f"{escape(clean)}</phoneme>"
         )
 
-    return _WORD_RE.sub(_replace, text)
+    parts = _WORD_RE.split(text)
+    return "".join(
+        _render_word(part) if i % 2 == 1 else escape(part)
+        for i, part in enumerate(parts)
+    )
