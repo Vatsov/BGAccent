@@ -138,6 +138,16 @@ class TestDiffMode:
         assert result.exit_code == 0
         assert result.stdout.strip() == ""
 
+    def test_diff_includes_morphological_match(self) -> None:
+        # "планините" is resolved via the morphological path, which still
+        # changes the surface text and must appear in --diff.
+        result = runner.invoke(
+            app,
+            ["планините", "--diff", "--trie", str(TEST_TRIE_PATH)],
+        )
+        assert result.exit_code == 0
+        assert "планините -> плани́ните" in result.stdout
+
 
 class TestUnknownOnlyMode:
     def test_unknown_only_output(self) -> None:

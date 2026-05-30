@@ -315,10 +315,23 @@ def _handle_check(
             raise typer.Exit(code=1)
 
 
+_ACCENT_STATUSES = frozenset(
+    {
+        "accented",
+        "homograph_flagged",
+        "homograph_resolved",
+        "custom_override",
+        "morphological_match",
+        "neural_predicted",
+        "predicted",
+    }
+)
+
+
 def _handle_diff(result: AccentResult) -> None:
     lines: list[str] = []
     for detail in result.details:
-        if detail.get("status") in ("accented", "homograph_flagged", "custom_override"):
+        if detail.get("status") in _ACCENT_STATUSES:
             word = detail["word"]
             accented = detail.get("accented", word)
             if word != accented:
