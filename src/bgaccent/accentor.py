@@ -145,8 +145,8 @@ class Accentor:
         word = token.text
 
         if "-" in word:
-            accented = self._process_hyphenated(word)
-            if accented != word:
+            accented, status = self._process_hyphenated(word)
+            if status == "accented":
                 return accented, {
                     "word": word,
                     "accented": accented,
@@ -154,7 +154,20 @@ class Accentor:
                     "line": token.line,
                     "column": token.col,
                 }
-            return accented, None
+            if status == "oov":
+                return accented, {
+                    "word": word,
+                    "status": "oov",
+                    "script": detect_script(word),
+                    "line": token.line,
+                    "column": token.col,
+                }
+            return accented, {
+                "word": word,
+                "status": "skipped_monosyllabic",
+                "line": token.line,
+                "column": token.col,
+            }
 
         return self._accent_single_word_with_detail(
             word, token.line, token.col, sentence_words
@@ -364,19 +377,35 @@ class Accentor:
             "column": col,
         }
 
-    def _process_hyphenated(self, word: str) -> str:
+    def _process_hyphenated(self, word: str) -> tuple[str, str]:
+        """Accent a hyphenated token, returning ``(accented, aggregate_status)``.
+
+        The status is one of ``accented`` (surface changed), ``oov`` (unchanged
+        but at least one part was a multisyllabic miss), or
+        ``skipped_monosyllabic`` (unchanged, nothing accentable). Exactly one
+        aggregate status is returned per token so the caller emits a single
+        report detail.
+        """
         lookup_key = strip_accents(word).lower()
         results = self._trie.get(lookup_key)
         if results:
             vowel_ordinal, _source_mask = results[0]
-            return place_accent(word, vowel_ordinal)
+            accented = place_accent(word, vowel_ordinal)
+            return accented, ("accented" if accented != word else "skipped_monosyllabic")
 
         parts = word.split("-")
         accented_parts: list[str] = []
+        any_oov = False
         for part in parts:
             if part.isdigit():
                 accented_parts.append(part)
-            else:
-                accented, _detail = self._accent_single_word_with_detail(part, 0, 0)
-                accented_parts.append(accented)
-        return "-".join(accented_parts)
+                continue
+            accented_part, detail = self._accent_single_word_with_detail(part, 0, 0)
+            accented_parts.append(accented_part)
+            if detail is not None and detail.get("status") == "oov":
+                any_oov = True
+
+        joined = "-".join(accented_parts)
+        if joined != word:
+            return joined, "accented"
+        return joined, ("oov" if any_oov else "skipped_monosyllabic")

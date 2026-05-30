@@ -66,6 +66,33 @@ class TestHyphenatedCompounds:
         acc = Accentor(trie_path=test_trie_path)
         assert acc.accent("3-те") == "3-те"
 
+    def test_hyphenated_oov_reported(self, test_trie_path: Path) -> None:
+        # No part is in the trie and both are multisyllabic: the whole
+        # hyphenated token must surface as a single OOV entry.
+        acc = Accentor(trie_path=test_trie_path)
+        result = acc.accent_with_report("непознат-непозната")
+        oov = [d for d in result.details if d["status"] == "oov"]
+        assert len(oov) == 1
+        assert oov[0]["word"] == "непознат-непозната"
+        assert result.stats.oov_multisyllabic == 1
+        assert "непознат-непозната" in result.oov_words
+
+    def test_hyphenated_monosyllabic_skipped_not_oov(
+        self, test_trie_path: Path
+    ) -> None:
+        # All parts monosyllabic and unchanged: skipped, never counted as OOV.
+        acc = Accentor(trie_path=test_trie_path)
+        result = acc.accent_with_report("ха-бе")
+        assert result.stats.oov_multisyllabic == 0
+        assert result.stats.skipped_monosyllabic == 1
+
+    def test_hyphenated_one_detail_per_token(self, test_trie_path: Path) -> None:
+        # Invariant: a hyphenated token produces exactly one detail.
+        acc = Accentor(trie_path=test_trie_path)
+        result = acc.accent_with_report("непознат-непозната")
+        assert len(result.details) == 1
+        assert result.stats.total_tokens == 1
+
 
 class TestYaYuVowels:
     def test_nyama(self, test_trie_path: Path) -> None:
