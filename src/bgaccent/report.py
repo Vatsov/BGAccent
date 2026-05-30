@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from typing import Any
 
 
@@ -17,6 +17,11 @@ class AccentStats:
     morphological_matches: int = 0
     predicted: int = 0
     neural_predicted: int = 0
+
+    def __iadd__(self, other: AccentStats) -> AccentStats:
+        for f in fields(self):
+            setattr(self, f.name, getattr(self, f.name) + getattr(other, f.name))
+        return self
 
 
 _LATIN_RE = re.compile(r"^[a-zA-Z\-]+$")
@@ -40,18 +45,7 @@ class AccentResult:
     def to_dict(self) -> dict[str, Any]:
         return {
             "text": self.text,
-            "stats": {
-                "total_tokens": self.stats.total_tokens,
-                "accented_tokens": self.stats.accented_tokens,
-                "oov_multisyllabic": self.stats.oov_multisyllabic,
-                "skipped_monosyllabic": self.stats.skipped_monosyllabic,
-                "already_accented": self.stats.already_accented,
-                "homographs_flagged": self.stats.homographs_flagged,
-                "custom_overrides": self.stats.custom_overrides,
-                "morphological_matches": self.stats.morphological_matches,
-                "predicted": self.stats.predicted,
-                "neural_predicted": self.stats.neural_predicted,
-            },
+            "stats": asdict(self.stats),
             "oov_words": self.oov_words,
             "homographs": self.homographs,
             "custom_overrides": self.custom_overrides,

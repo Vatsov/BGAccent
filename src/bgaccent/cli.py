@@ -14,6 +14,15 @@ from bgaccent.report import AccentResult
 app = typer.Typer(add_completion=False)
 
 SUPPORTED_MODES = ("preserve", "replace-safe")
+SUPPORTED_FORMATS = ("text", "ssml")
+
+
+def _finalize_text(text: str, output_format: str) -> str:
+    if output_format == "ssml":
+        from bgaccent.ssml import format_ssml
+
+        return format_ssml(text)
+    return text
 
 
 def version_callback(value: bool) -> None:
@@ -98,6 +107,10 @@ def main(
         typer.echo(f"Error: --mode must be one of {SUPPORTED_MODES}", err=True)
         raise typer.Exit(code=2)
 
+    if output_format not in SUPPORTED_FORMATS:
+        typer.echo(f"Error: --format must be one of {SUPPORTED_FORMATS}", err=True)
+        raise typer.Exit(code=2)
+
     trie_path = trie
     if trie_path is None:
         from bgaccent.data import get_trie_path
@@ -122,6 +135,7 @@ def main(
             fail_on_homographs=fail_on_homographs,
             max_oov_rate=max_oov_rate,
             quiet=quiet,
+            output_format=output_format,
         )
         return
 
@@ -165,11 +179,7 @@ def main(
         _handle_unknown_only(result)
         return
 
-    final_text = result.text
-    if output_format == "ssml":
-        from bgaccent.ssml import format_ssml
-
-        final_text = format_ssml(result.text)
+    final_text = _finalize_text(result.text, output_format)
 
     if output:
         output.write_text(final_text, encoding="utf-8")
@@ -191,6 +201,7 @@ def _handle_batch(
     fail_on_homographs: bool,
     max_oov_rate: float | None,
     quiet: bool,
+    output_format: str,
 ) -> None:
     from bgaccent.report import AccentResult, AccentStats
 
@@ -230,7 +241,8 @@ def _handle_batch(
         result = acc.accent_with_report(text)
 
         if out_dir is not None and not check:
-            (out_dir / txt_file.name).write_text(result.text, encoding="utf-8")
+            final_text = _finalize_text(result.text, output_format)
+            (out_dir / txt_file.name).write_text(final_text, encoding="utf-8")
             _write_log(out_dir / txt_file.name, result, quiet)
 
         if report_dir is not None:
@@ -240,16 +252,7 @@ def _handle_batch(
                 encoding="utf-8",
             )
 
-        s = result.stats
-        total_stats.total_tokens += s.total_tokens
-        total_stats.accented_tokens += s.accented_tokens
-        total_stats.oov_multisyllabic += s.oov_multisyllabic
-        total_stats.skipped_monosyllabic += s.skipped_monosyllabic
-        total_stats.already_accented += s.already_accented
-        total_stats.homographs_flagged += s.homographs_flagged
-        total_stats.custom_overrides += s.custom_overrides
-        total_stats.morphological_matches += s.morphological_matches
-        total_stats.predicted += s.predicted
+        total_stats += result.stats
 
         for w in result.oov_words:
             if w not in oov_seen:
