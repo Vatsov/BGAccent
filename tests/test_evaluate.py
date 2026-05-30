@@ -43,6 +43,17 @@ class TestEvaluateScript:
         assert isinstance(rate, float)
         assert 0.0 <= rate <= 100.0
 
+    def test_flagged_homographs_not_double_counted(
+        self, tmp_path: Path
+    ) -> None:
+        # "замък" is a flagged homograph: accented_tokens already counts it,
+        # so coverage must be 100%, not 200%.
+        text = tmp_path / "homograph.txt"
+        text.write_text("замък", encoding="utf-8")
+        result = evaluate(TEST_TRIE_PATH, text)
+        assert result["accented_tokens"] == 1
+        assert result["coverage_rate"] == 100.0
+
     def test_missing_trie_exits_nonzero(self, tmp_path: Path) -> None:
         result = subprocess.run(
             [

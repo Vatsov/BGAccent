@@ -20,7 +20,9 @@ def evaluate(trie_path: Path, text_path: Path) -> dict[str, object]:
 
     stats = result.stats
     total = stats.total_tokens
-    accented = stats.accented_tokens + stats.homographs_flagged
+    # accented_tokens already includes homograph hits (both flagged and
+    # resolved), so it must not be summed with homographs_flagged again.
+    accented = stats.accented_tokens
     oov = stats.oov_multisyllabic
     multisyllabic = total - stats.skipped_monosyllabic
     coverage_rate = (accented / multisyllabic * 100) if multisyllabic > 0 else 0.0
