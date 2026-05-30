@@ -11,6 +11,7 @@ from bgaccent.morphology import SuffixStripper, morphology_lookup, transfer_stre
 from bgaccent.neural_predictor import NeuralStressPredictor
 from bgaccent.ngram_predictor import StressPredictor
 from bgaccent.report import AccentResult, AccentStats, detect_script
+from bgaccent.sources import mask_to_labels, priority_key
 from bgaccent.tokenizer import Token, detokenize, tokenize
 from bgaccent.unicode import (
     COMBINING_ACUTE,
@@ -182,7 +183,7 @@ class Accentor:
                 return accented, {
                     "word": clean,
                     "accented": accented,
-                    "source": "custom",
+                    "sources": ["custom"],
                     "status": "accented",
                     "line": line,
                     "column": col,
@@ -193,7 +194,7 @@ class Accentor:
                 return accented, {
                     "word": clean,
                     "accented": accented,
-                    "source": "bayganyu",
+                    "sources": mask_to_labels(source_mask),
                     "source_mask": source_mask,
                     "status": "accented",
                     "line": line,
@@ -246,7 +247,7 @@ class Accentor:
                     return accented, {
                         "word": word,
                         "accented": accented,
-                        "source": "custom",
+                        "sources": ["custom"],
                         "dictionary_alternative": trie_accented,
                         "status": "custom_override",
                         "line": line,
@@ -255,7 +256,7 @@ class Accentor:
             return accented, {
                 "word": word,
                 "accented": accented,
-                "source": "custom",
+                "sources": ["custom"],
                 "status": "accented",
                 "line": line,
                 "column": col,
@@ -332,7 +333,7 @@ class Accentor:
                     "line": line,
                     "column": col,
                 }
-            sorted_results = sorted(results, key=lambda r: (-(r[1] & 0xF0), r[0]))
+            sorted_results = sorted(results, key=lambda r: (priority_key(r[1]), r[0]))
             chosen_ordinal, chosen_mask = sorted_results[0]
             accented = place_accent(word, chosen_ordinal)
             alternatives = [
@@ -356,7 +357,7 @@ class Accentor:
         return accented, {
             "word": word,
             "accented": accented,
-            "source": "bayganyu",
+            "sources": mask_to_labels(source_mask),
             "source_mask": source_mask,
             "status": "accented",
             "line": line,
