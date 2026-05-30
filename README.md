@@ -68,19 +68,23 @@ bgaccent [OPTIONS] [INPUT]
 ### Batch processing (audiobook chapters)
 
 ```bash
-bgaccent chapter01.txt chapter02.txt chapter03.txt --out-dir accented/
+bgaccent chapters/ --out-dir accented/
 ```
+
+Processes every `*.txt` file in the input directory and writes accented copies
+to `--out-dir`.
 
 ### Custom dictionary for names and places
 
 Create a TSV file (`custom.tsv`):
 
 ```tsv
-Пенчо	2
-Славейков	2
+Пенчо	Пе́нчо
+Славейков	Славе́йков
 ```
 
-Column 1: word, column 2: 0-based vowel ordinal for stress position.
+Column 1: word. Column 2: accented form with U+0301 combining acute on the
+stressed vowel.
 
 ```bash
 bgaccent input.txt --custom names.tsv --custom places.tsv -o output.txt
@@ -109,12 +113,17 @@ Exits with code 1 if OOV rate exceeds 5%.
 ## Python API
 
 ```python
-from bgaccent import accent
+from bgaccent import accent, accent_with_report
 
-result = accent("Планината беше покрита със сняг.")
-print(result.text)    # Планина́та бе́ше покри́та със сняг.
-print(result.stats)   # AccentStats(accented_tokens=3, oov_multisyllabic=0, ...)
-print(result.oov_words)  # []
+# Plain string — for simple cases
+print(accent("Планината беше покрита със сняг."))
+# → Планина́та бе́ше покри́та със сняг.
+
+# Full report — stats, OOV list, per-token details
+result = accent_with_report("Планината беше покрита със сняг.")
+print(result.text)        # Планина́та бе́ше покри́та със сняг.
+print(result.stats)       # AccentStats(accented_tokens=3, oov_multisyllabic=0, ...)
+print(result.oov_words)   # []
 ```
 
 ## Accent resolution pipeline
@@ -124,11 +133,17 @@ Words are resolved in this order — first match wins:
 1. **Custom dictionary** — user-provided TSV overrides
 2. **Trie lookup** — bundled 230K-word dictionary
 3. **Morphological fallback** — suffix stripping to find base forms
-4. **Neural prediction** — BiLSTM/ONNX stress predictor (requires `bgaccent[train]`)
+4. **Neural prediction** — BiLSTM/ONNX stress predictor (Python API only,
+   requires `bgaccent[train]` and `neural_model_path`/`neural_vocab_path`
+   passed to `Accentor`)
 5. **N-gram analogy** — suffix-based stress prediction from known patterns
+   (Python API only, requires `enable_prediction=True` on `Accentor`)
 6. **OOV** — word reported as out-of-vocabulary
 
-Homographs (words with multiple valid stress positions) are flagged in the report for manual review.
+Homographs (words with multiple valid stress positions) are flagged in the
+report for manual review. POS-based disambiguation (spaCy) runs automatically
+when the model is available; a transformer-based disambiguator is scaffolded
+for Phase 2 and is not wired into the runtime pipeline.
 
 ## Building the dictionary trie
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -38,8 +39,13 @@ class TransformerDisambiguator:
                 import onnxruntime
                 self._session = onnxruntime.InferenceSession(str(model_path))
                 self._available = True
-            except (ImportError, Exception):
+            except ImportError:
                 pass
+            except Exception as exc:
+                print(
+                    f"Warning: transformer disambiguator unavailable: {exc}",
+                    file=sys.stderr,
+                )
 
     def disambiguate(
         self,

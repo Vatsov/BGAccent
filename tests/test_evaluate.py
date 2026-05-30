@@ -16,9 +16,6 @@ class TestEvaluateScript:
         assert "total_tokens" in result
         assert "coverage_rate" in result
 
-    def test_output_contains_stats(self, capsys: object) -> None:
-        evaluate(TEST_TRIE_PATH, SAMPLE_TEXT)
-
     def test_subprocess_output_format(self, tmp_path: Path) -> None:
         result = subprocess.run(
             [
