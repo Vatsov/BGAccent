@@ -11,6 +11,13 @@ from pathlib import Path
 
 import marisa_trie
 
+from bgaccent.sources import (
+    DEFAULT_PRIORITY,
+    MIT_COMPATIBLE_SOURCES,
+    SOURCE_BITS,
+    SOURCE_LICENSES,
+)
+
 BULGARIAN_VOWELS = frozenset("аеиоуъяюАЕИОУЪЯЮ")
 
 
@@ -87,11 +94,17 @@ def build_trie(
     source_license: str = "MIT",
     allow_invalid: bool = False,
 ) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
     entries = parse_bayganyu_csv(csv_path)
 
     all_lines = csv_path.read_text(encoding="utf-8-sig").splitlines()
+    first_line = all_lines[0].strip() if all_lines else ""
+    header_offset = 1 if first_line.startswith("word") else 0
     total_lines = sum(
-        1 for raw in all_lines if raw.strip() and not raw.strip().startswith("#")
+        1
+        for raw in all_lines[header_offset:]
+        if raw.strip() and not raw.strip().startswith("#")
     )
     invalid_count = total_lines - len(entries)
 
@@ -129,8 +142,6 @@ def build_trie(
             values.append((vowel_idx, source_mask))
 
     trie = marisa_trie.RecordTrie("HB", zip(keys, values, strict=True))
-
-    output_path.parent.mkdir(parents=True, exist_ok=True)
     trie.save(str(output_path))
 
     meta = {
@@ -241,23 +252,6 @@ def parse_wiktionary_jsonl(jsonl_path: Path) -> list[tuple[str, int, int]]:
     return entries
 
 
-SOURCE_BITS: dict[str, int] = {
-    "bayganyu": 1,
-    "wiktionary": 2,
-    "bgospodinov": 4,
-}
-
-DEFAULT_PRIORITY = ["bgospodinov", "bayganyu", "wiktionary"]
-
-SOURCE_LICENSES: dict[str, str] = {
-    "bayganyu": "MIT",
-    "wiktionary": "CC-BY-SA",
-    "bgospodinov": "GPL-3.0",
-}
-
-MIT_COMPATIBLE_SOURCES = {"bayganyu", "wiktionary"}
-
-
 def merge_entries(
     entries_by_source: dict[str, list[tuple[str, int, int]]],
     priority: list[str] | None = None,
@@ -326,6 +320,7 @@ def build_multi_source_trie(
     license_filter: str = "mit",
 ) -> None:
     """Build trie from multiple sources with license filtering."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     allowed = MIT_COMPATIBLE_SOURCES if license_filter == "mit" else set(SOURCE_BITS.keys())
 
     all_entries: dict[str, list[tuple[str, int, int]]] = {}
@@ -360,7 +355,6 @@ def build_multi_source_trie(
             values.append((ordinal, mask))
 
     trie = marisa_trie.RecordTrie("HB", zip(keys, values, strict=True))
-    output_path.parent.mkdir(parents=True, exist_ok=True)
     trie.save(str(output_path))
 
     source_names = sorted(all_entries.keys())
