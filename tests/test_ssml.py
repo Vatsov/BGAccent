@@ -33,6 +33,11 @@ class TestSsmlWrapping:
         assert "," in result
         assert "!" in result
 
+    def test_quote_in_value_stays_valid_xml(self) -> None:
+        # A double-quote reaching the ph attribute must not break the XML.
+        result = format_ssml('a"́')
+        ET.fromstring(f"<root>{result}</root>")
+
 
 class TestBulgarianIpa:
     def test_stress_marker_placed(self) -> None:
@@ -50,6 +55,19 @@ class TestBulgarianIpa:
     def test_krasiva_ipa(self) -> None:
         ipa = to_ipa("красива", 1)
         assert "ˈ" in ipa
+
+    def test_initial_vowel_stress_marked(self) -> None:
+        # "ю́жен": stress on the first vowel must still emit the marker.
+        assert to_ipa("южен", 0) == "ˈjuʒɛn"
+
+    def test_initial_glide_stress_marked(self) -> None:
+        # "бя́гам": first-vowel stress after a single consonant onset.
+        assert to_ipa("бягам", 0) == "ˈbjagam"
+
+    def test_initial_consonant_cluster_stress_marked(self) -> None:
+        # "стра́на" with stress on the first vowel: the marker walks back to
+        # before the whole onset cluster.
+        assert to_ipa("страна", 0) == "ˈstrana"
 
 
 class TestSsmlCliIntegration:

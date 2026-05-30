@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from xml.sax.saxutils import escape
+from xml.sax.saxutils import escape, quoteattr
 
 from bgaccent.unicode import BULGARIAN_VOWELS, COMBINING_ACUTE
 
@@ -37,8 +37,9 @@ def to_ipa(word: str, stress_vowel_index: int) -> str:
             c in _IPA_VOWELS for c in ipa_chars[insert_pos - 1]
         ):
             insert_pos -= 1
-        if insert_pos > 0 or stress_vowel_index > 0:
-            ipa_chars.insert(insert_pos, "ˈ")
+        # Always mark primary stress, including on a word-initial syllable
+        # (e.g. "ю́жен", "бя́гам") — a leading marker is valid IPA.
+        ipa_chars.insert(insert_pos, "ˈ")
 
     return "".join(ipa_chars)
 
@@ -57,7 +58,7 @@ def format_ssml(text: str) -> str:
         stress_index = vowel_idx - 1 if vowel_idx > 0 else 0
         ipa = to_ipa(clean, stress_index)
         return (
-            f'<phoneme alphabet="ipa" ph="{escape(ipa)}">'
+            f'<phoneme alphabet="ipa" ph={quoteattr(ipa)}>'
             f"{escape(clean)}</phoneme>"
         )
 
