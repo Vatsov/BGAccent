@@ -22,7 +22,13 @@ def mask_to_labels(mask: int) -> list[str]:
 
 
 def priority_key(mask: int) -> int:
+    """Sort key for homograph candidates; lower means higher priority.
+
+    ``DEFAULT_PRIORITY`` is ordered most-preferred first, so its index is the
+    key directly: ascending ``sorted()`` then picks the highest-priority
+    source. Unknown masks sort last.
+    """
     for i, name in enumerate(DEFAULT_PRIORITY):
         if mask & SOURCE_BITS[name]:
-            return -i
-    return -99
+            return i
+    return 99

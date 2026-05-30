@@ -67,6 +67,22 @@ class TestHomographs:
         result = acc.accent_with_report("замък е замък")
         assert result.homographs.count("замък") == 1
 
+    def test_cross_source_priority_beats_lowest_ordinal(
+        self, test_trie_path: Path
+    ) -> None:
+        # "килим" has wiktionary@ordinal0 and bgospodinov@ordinal1.
+        # bgospodinov outranks wiktionary in DEFAULT_PRIORITY, so its
+        # ordinal must win even though it is the higher index.
+        acc = Accentor(trie_path=test_trie_path)
+        assert acc.accent("килим") == "кили́м"
+
+    def test_cross_source_chosen_mask(self, test_trie_path: Path) -> None:
+        acc = Accentor(trie_path=test_trie_path)
+        result = acc.accent_with_report("килим")
+        hom = [d for d in result.details if d.get("status") == "homograph_flagged"]
+        assert len(hom) == 1
+        assert hom[0]["source_mask"] == 4
+
 
 class TestOOVDetection:
     def test_cyrillic_oov_script(self, test_trie_path: Path) -> None:

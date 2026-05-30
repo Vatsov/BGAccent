@@ -4,7 +4,7 @@ Run: uv run python tests/helpers/build_test_trie.py
 
 Each entry: (word, vowel_ordinal, source_mask)
   vowel_ordinal: 0-based index among Bulgarian vowels in the NFC-normalized word
-  source_mask: 1=bayganyu
+  source_mask: 1=bayganyu, 2=wiktionary, 4=bgospodinov
 """
 
 from __future__ import annotations
@@ -75,9 +75,13 @@ ENTRIES: list[tuple[str, int, int]] = [
     ("страна", 1, 1),
     ("стара", 1, 1),
     ("нова", 1, 1),
-    # Homograph: "замък" with two stress positions
+    # Homograph: "замък" with two stress positions (same source)
     ("замък", 0, 1),
     ("замък", 1, 1),
+    # Cross-source homograph: bgospodinov (higher priority) carries the
+    # HIGHER ordinal, so source precedence — not lowest-ordinal — must decide.
+    ("килим", 0, 2),  # wiktionary -> ки́лим
+    ("килим", 1, 4),  # bgospodinov -> кили́м (must win)
 ]
 
 
