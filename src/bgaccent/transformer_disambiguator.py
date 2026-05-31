@@ -37,6 +37,7 @@ class TransformerDisambiguator:
         if model_path is not None and model_path.exists():
             try:
                 import onnxruntime
+
                 self._session = onnxruntime.InferenceSession(str(model_path))
                 self._available = True
             except ImportError:
@@ -57,6 +58,7 @@ class TransformerDisambiguator:
             return None
 
         import numpy as np
+
         sentence = " ".join(sentence_tokens)
         encoded = np.array([[ord(c) % 128 for c in sentence[:512]]], dtype=np.int64)
 

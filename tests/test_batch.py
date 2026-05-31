@@ -62,22 +62,36 @@ class TestAggregateReport:
         inp = _make_input_dir(tmp_path)
         out = tmp_path / "output"
         report_dir = tmp_path / "reports"
-        runner.invoke(app, [
-            str(inp), "--out-dir", str(out),
-            "--report", str(report_dir),
-            "--trie", str(FIXTURE_TRIE),
-        ])
+        runner.invoke(
+            app,
+            [
+                str(inp),
+                "--out-dir",
+                str(out),
+                "--report",
+                str(report_dir),
+                "--trie",
+                str(FIXTURE_TRIE),
+            ],
+        )
         assert (report_dir / "summary.json").exists()
 
     def test_per_file_reports_created(self, tmp_path: Path) -> None:
         inp = _make_input_dir(tmp_path)
         out = tmp_path / "output"
         report_dir = tmp_path / "reports"
-        runner.invoke(app, [
-            str(inp), "--out-dir", str(out),
-            "--report", str(report_dir),
-            "--trie", str(FIXTURE_TRIE),
-        ])
+        runner.invoke(
+            app,
+            [
+                str(inp),
+                "--out-dir",
+                str(out),
+                "--report",
+                str(report_dir),
+                "--trie",
+                str(FIXTURE_TRIE),
+            ],
+        )
         assert (report_dir / "chapter1.json").exists()
         assert (report_dir / "chapter2.json").exists()
 
@@ -85,11 +99,18 @@ class TestAggregateReport:
         inp = _make_input_dir(tmp_path)
         out = tmp_path / "output"
         report_dir = tmp_path / "reports"
-        runner.invoke(app, [
-            str(inp), "--out-dir", str(out),
-            "--report", str(report_dir),
-            "--trie", str(FIXTURE_TRIE),
-        ])
+        runner.invoke(
+            app,
+            [
+                str(inp),
+                "--out-dir",
+                str(out),
+                "--report",
+                str(report_dir),
+                "--trie",
+                str(FIXTURE_TRIE),
+            ],
+        )
         summary = json.loads((report_dir / "summary.json").read_text(encoding="utf-8"))
         assert "total" in summary
         assert "per_file" in summary
@@ -112,11 +133,16 @@ class TestEmptyDirAndCheck:
     def test_check_max_oov_rate_exits_1(self, tmp_path: Path) -> None:
         d = tmp_path / "oov_input"
         d.mkdir()
-        (d / "ch.txt").write_text(
-            "абракадабра фантасмагория непостижимост", encoding="utf-8"
+        (d / "ch.txt").write_text("абракадабра фантасмагория непостижимост", encoding="utf-8")
+        result = runner.invoke(
+            app,
+            [
+                str(d),
+                "--check",
+                "--max-oov-rate",
+                "0.001",
+                "--trie",
+                str(FIXTURE_TRIE),
+            ],
         )
-        result = runner.invoke(app, [
-            str(d), "--check", "--max-oov-rate", "0.001",
-            "--trie", str(FIXTURE_TRIE),
-        ])
         assert result.exit_code == 1

@@ -35,6 +35,5 @@ def get_trie_path() -> Path:
         return _BUNDLED_TRIE
 
     raise FileNotFoundError(
-        f"Trie file not found at {_BUNDLED_TRIE}. "
-        "Reinstall with: pip install bgaccent"
+        f"Trie file not found at {_BUNDLED_TRIE}. Reinstall with: pip install bgaccent"
     )

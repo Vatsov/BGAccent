@@ -21,9 +21,7 @@ from scripts.download_sources import should_skip
 def _make_bgospodinov_db(path: Path, rows: list[tuple[str, str | None]]) -> None:
     conn = sqlite3.connect(str(path))
     conn.execute(
-        "CREATE TABLE wordform ("
-        "  wordform TEXT, wordform_stressed TEXT, tag TEXT, pos TEXT"
-        ")"
+        "CREATE TABLE wordform (  wordform TEXT, wordform_stressed TEXT, tag TEXT, pos TEXT)"
     )
     for plain, stressed in rows:
         conn.execute(

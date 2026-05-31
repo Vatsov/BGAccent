@@ -74,27 +74,21 @@ class TestSsmlCliIntegration:
     def test_format_ssml_flag(self, tmp_path: Path) -> None:
         inp = tmp_path / "input.txt"
         inp.write_text("планината е красива", encoding="utf-8")
-        result = runner.invoke(
-            app, [str(inp), "--format", "ssml", "--trie", str(FIXTURE_TRIE)]
-        )
+        result = runner.invoke(app, [str(inp), "--format", "ssml", "--trie", str(FIXTURE_TRIE)])
         assert result.exit_code == 0
         assert "<phoneme" in result.output
 
     def test_format_text_default(self, tmp_path: Path) -> None:
         inp = tmp_path / "input.txt"
         inp.write_text("планината е красива", encoding="utf-8")
-        result = runner.invoke(
-            app, [str(inp), "--format", "text", "--trie", str(FIXTURE_TRIE)]
-        )
+        result = runner.invoke(app, [str(inp), "--format", "text", "--trie", str(FIXTURE_TRIE)])
         assert result.exit_code == 0
         assert "́" in result.output
 
     def test_ssml_valid_xml(self, tmp_path: Path) -> None:
         inp = tmp_path / "input.txt"
         inp.write_text("планината", encoding="utf-8")
-        result = runner.invoke(
-            app, [str(inp), "--format", "ssml", "--trie", str(FIXTURE_TRIE)]
-        )
+        result = runner.invoke(app, [str(inp), "--format", "ssml", "--trie", str(FIXTURE_TRIE)])
         ET.fromstring(f"<root>{result.output}</root>")
 
     def test_ssml_with_file_output(self, tmp_path: Path) -> None:

@@ -55,13 +55,15 @@ def tokenize(text: str) -> list[Token]:
         kind = match.lastgroup
         assert kind is not None
 
-        tokens.append(Token(
-            kind=kind,  # type: ignore[arg-type]
-            text=matched_text,
-            original=matched_text,
-            line=line,
-            col=col,
-        ))
+        tokens.append(
+            Token(
+                kind=kind,  # type: ignore[arg-type]
+                text=matched_text,
+                original=matched_text,
+                line=line,
+                col=col,
+            )
+        )
 
         for ch in matched_text:
             if ch == "\n":

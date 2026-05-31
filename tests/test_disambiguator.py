@@ -56,23 +56,28 @@ class TestDisambiguatorWithMockedSpacy:
         return nlp
 
     def test_noun_context_returns_ordinal_0(self) -> None:
-        nlp = self._mock_nlp([
-            ("Старият", "ADJ"), ("замък", "NOUN"), ("беше", "AUX"), ("красив", "ADJ"),
-        ])
-        dis = HomographDisambiguator(spacy_model=nlp)
-        result = dis.disambiguate(
-            "замък", ["Старият", "замък", "беше", "красив"], [(0, 1), (1, 1)]
+        nlp = self._mock_nlp(
+            [
+                ("Старият", "ADJ"),
+                ("замък", "NOUN"),
+                ("беше", "AUX"),
+                ("красив", "ADJ"),
+            ]
         )
+        dis = HomographDisambiguator(spacy_model=nlp)
+        result = dis.disambiguate("замък", ["Старият", "замък", "беше", "красив"], [(0, 1), (1, 1)])
         assert result == 0
 
     def test_verb_context_returns_ordinal_1(self) -> None:
-        nlp = self._mock_nlp([
-            ("Той", "PRON"), ("замък", "VERB"), ("торбата", "NOUN"),
-        ])
-        dis = HomographDisambiguator(spacy_model=nlp)
-        result = dis.disambiguate(
-            "замък", ["Той", "замък", "торбата"], [(0, 1), (1, 1)]
+        nlp = self._mock_nlp(
+            [
+                ("Той", "PRON"),
+                ("замък", "VERB"),
+                ("торбата", "NOUN"),
+            ]
         )
+        dis = HomographDisambiguator(spacy_model=nlp)
+        result = dis.disambiguate("замък", ["Той", "замък", "торбата"], [(0, 1), (1, 1)])
         assert result == 1
 
     def test_unknown_word_returns_none(self) -> None:

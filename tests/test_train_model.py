@@ -55,9 +55,7 @@ class TestVocab:
         encoded = train_mod.encode_word("test", vocab)
         assert all(idx == vocab["<UNK>"] for idx in encoded)
 
-    def test_vocab_json_roundtrip(
-        self, train_mod: ModuleType, tmp_path: Path
-    ) -> None:
+    def test_vocab_json_roundtrip(self, train_mod: ModuleType, tmp_path: Path) -> None:
         trie = _load_trie()
         vocab = train_mod.build_vocab(trie)
         path = tmp_path / "vocab.json"
@@ -105,17 +103,13 @@ class TestDataset:
 
 class TestModel:
     def test_instantiation(self, train_mod: ModuleType) -> None:
-        model = train_mod.StressBiLSTM(
-            vocab_size=68, embed_dim=64, hidden_dim=128, max_vowels=10
-        )
+        model = train_mod.StressBiLSTM(vocab_size=68, embed_dim=64, hidden_dim=128, max_vowels=10)
         assert model is not None
 
     def test_forward_shape(self, train_mod: ModuleType) -> None:
         import torch
 
-        model = train_mod.StressBiLSTM(
-            vocab_size=68, embed_dim=64, hidden_dim=128, max_vowels=10
-        )
+        model = train_mod.StressBiLSTM(vocab_size=68, embed_dim=64, hidden_dim=128, max_vowels=10)
         x = torch.randint(0, 68, (32, 20))
         out = model(x)
         assert out.shape == (32, 10)
@@ -123,9 +117,7 @@ class TestModel:
     def test_output_is_log_probs(self, train_mod: ModuleType) -> None:
         import torch
 
-        model = train_mod.StressBiLSTM(
-            vocab_size=68, embed_dim=64, hidden_dim=128, max_vowels=10
-        )
+        model = train_mod.StressBiLSTM(vocab_size=68, embed_dim=64, hidden_dim=128, max_vowels=10)
         x = torch.randint(0, 68, (4, 10))
         out = model(x)
         probs = torch.exp(out)
@@ -133,34 +125,24 @@ class TestModel:
         assert torch.allclose(sums, torch.ones_like(sums), atol=1e-4)
 
     def test_param_count(self, train_mod: ModuleType) -> None:
-        model = train_mod.StressBiLSTM(
-            vocab_size=68, embed_dim=64, hidden_dim=128, max_vowels=10
-        )
+        model = train_mod.StressBiLSTM(vocab_size=68, embed_dim=64, hidden_dim=128, max_vowels=10)
         count = sum(p.numel() for p in model.parameters())
         assert count < 2_000_000
 
 
 class TestOnnxExport:
-    def test_export_creates_file(
-        self, train_mod: ModuleType, tmp_path: Path
-    ) -> None:
-        model = train_mod.StressBiLSTM(
-            vocab_size=68, embed_dim=64, hidden_dim=128, max_vowels=10
-        )
+    def test_export_creates_file(self, train_mod: ModuleType, tmp_path: Path) -> None:
+        model = train_mod.StressBiLSTM(vocab_size=68, embed_dim=64, hidden_dim=128, max_vowels=10)
         trie = _load_trie()
         vocab = train_mod.build_vocab(trie)
         out = tmp_path / "model.onnx"
         train_mod.export_onnx(model, vocab, out)
         assert out.exists()
 
-    def test_onnx_loadable(
-        self, train_mod: ModuleType, tmp_path: Path
-    ) -> None:
+    def test_onnx_loadable(self, train_mod: ModuleType, tmp_path: Path) -> None:
         onnxruntime = pytest.importorskip("onnxruntime")
 
-        model = train_mod.StressBiLSTM(
-            vocab_size=68, embed_dim=64, hidden_dim=128, max_vowels=10
-        )
+        model = train_mod.StressBiLSTM(vocab_size=68, embed_dim=64, hidden_dim=128, max_vowels=10)
         trie = _load_trie()
         vocab = train_mod.build_vocab(trie)
         out = tmp_path / "model.onnx"
@@ -168,12 +150,8 @@ class TestOnnxExport:
         session = onnxruntime.InferenceSession(str(out))
         assert session is not None
 
-    def test_vocab_json_saved(
-        self, train_mod: ModuleType, tmp_path: Path
-    ) -> None:
-        model = train_mod.StressBiLSTM(
-            vocab_size=68, embed_dim=64, hidden_dim=128, max_vowels=10
-        )
+    def test_vocab_json_saved(self, train_mod: ModuleType, tmp_path: Path) -> None:
+        model = train_mod.StressBiLSTM(vocab_size=68, embed_dim=64, hidden_dim=128, max_vowels=10)
         trie = _load_trie()
         vocab = train_mod.build_vocab(trie)
         out = tmp_path / "model.onnx"

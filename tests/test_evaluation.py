@@ -15,10 +15,7 @@ FIXTURE_TRIE = Path(__file__).parent / "fixtures" / "bg_test.marisa"
 def _make_ground_truth(tmp_path: Path) -> Path:
     gt = tmp_path / "ground_truth.tsv"
     gt.write_text(
-        "планината\tплани́ната\n"
-        "красива\tкраси́ва\n"
-        "живот\tживо́т\n"
-        "непозната\tнепозна́та\n",
+        "планината\tплани́ната\nкрасива\tкраси́ва\nживот\tживо́т\nнепозната\tнепозна́та\n",
         encoding="utf-8",
     )
     return gt
@@ -62,9 +59,7 @@ class TestBaseline:
         gt = _make_ground_truth(tmp_path)
         result = evaluate_quality(FIXTURE_TRIE, gt)
         baseline_path = tmp_path / "baseline.json"
-        baseline_path.write_text(
-            json.dumps(result.to_dict(), ensure_ascii=False), encoding="utf-8"
-        )
+        baseline_path.write_text(json.dumps(result.to_dict(), ensure_ascii=False), encoding="utf-8")
         comparison = compare_baselines(result, baseline_path)
         assert comparison["regressions"] == []
 
@@ -74,9 +69,7 @@ class TestBaseline:
         fake_baseline = result.to_dict()
         fake_baseline["accuracy"] = result.accuracy + 0.1
         baseline_path = tmp_path / "baseline.json"
-        baseline_path.write_text(
-            json.dumps(fake_baseline, ensure_ascii=False), encoding="utf-8"
-        )
+        baseline_path.write_text(json.dumps(fake_baseline, ensure_ascii=False), encoding="utf-8")
         comparison = compare_baselines(result, baseline_path)
         if result.accuracy < fake_baseline["accuracy"] - 0.01:
             assert len(comparison["regressions"]) > 0

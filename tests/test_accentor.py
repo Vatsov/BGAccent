@@ -77,9 +77,7 @@ class TestHyphenatedCompounds:
         assert result.stats.oov_multisyllabic == 1
         assert "непознат-непозната" in result.oov_words
 
-    def test_hyphenated_monosyllabic_skipped_not_oov(
-        self, test_trie_path: Path
-    ) -> None:
+    def test_hyphenated_monosyllabic_skipped_not_oov(self, test_trie_path: Path) -> None:
         # All parts monosyllabic and unchanged: skipped, never counted as OOV.
         acc = Accentor(trie_path=test_trie_path)
         result = acc.accent_with_report("ха-бе")

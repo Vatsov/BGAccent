@@ -6,12 +6,36 @@ from xml.sax.saxutils import escape, quoteattr
 from bgaccent.unicode import BULGARIAN_VOWELS, COMBINING_ACUTE
 
 _GRAPHEME_TO_IPA: dict[str, str] = {
-    "а": "a", "б": "b", "в": "v", "г": "g", "д": "d",
-    "е": "ɛ", "ж": "ʒ", "з": "z", "и": "i", "й": "j",
-    "к": "k", "л": "l", "м": "m", "н": "n", "о": "ɔ",
-    "п": "p", "р": "r", "с": "s", "т": "t", "у": "u",
-    "ф": "f", "х": "x", "ц": "ts", "ч": "tʃ", "ш": "ʃ",
-    "щ": "ʃt", "ъ": "ɤ", "ь": "j", "ю": "ju", "я": "ja",
+    "а": "a",
+    "б": "b",
+    "в": "v",
+    "г": "g",
+    "д": "d",
+    "е": "ɛ",
+    "ж": "ʒ",
+    "з": "z",
+    "и": "i",
+    "й": "j",
+    "к": "k",
+    "л": "l",
+    "м": "m",
+    "н": "n",
+    "о": "ɔ",
+    "п": "p",
+    "р": "r",
+    "с": "s",
+    "т": "t",
+    "у": "u",
+    "ф": "f",
+    "х": "x",
+    "ц": "ts",
+    "ч": "tʃ",
+    "ш": "ʃ",
+    "щ": "ʃt",
+    "ъ": "ɤ",
+    "ь": "j",
+    "ю": "ju",
+    "я": "ja",
 }
 
 _WORD_RE = re.compile(r"(\S+)")
@@ -33,9 +57,7 @@ def to_ipa(word: str, stress_vowel_index: int) -> str:
     if stress_vowel_index < len(vowel_positions):
         vowel_pos = vowel_positions[stress_vowel_index]
         insert_pos = vowel_pos
-        while insert_pos > 0 and not any(
-            c in _IPA_VOWELS for c in ipa_chars[insert_pos - 1]
-        ):
+        while insert_pos > 0 and not any(c in _IPA_VOWELS for c in ipa_chars[insert_pos - 1]):
             insert_pos -= 1
         # Always mark primary stress, including on a word-initial syllable
         # (e.g. "ю́жен", "бя́гам") — a leading marker is valid IPA.
@@ -57,13 +79,9 @@ def format_ssml(text: str) -> str:
                 vowel_idx += 1
         stress_index = vowel_idx - 1 if vowel_idx > 0 else 0
         ipa = to_ipa(clean, stress_index)
-        return (
-            f'<phoneme alphabet="ipa" ph={quoteattr(ipa)}>'
-            f"{escape(clean)}</phoneme>"
-        )
+        return f'<phoneme alphabet="ipa" ph={quoteattr(ipa)}>{escape(clean)}</phoneme>'
 
     parts = _WORD_RE.split(text)
     return "".join(
-        _render_word(part) if i % 2 == 1 else escape(part)
-        for i, part in enumerate(parts)
+        _render_word(part) if i % 2 == 1 else escape(part) for i, part in enumerate(parts)
     )

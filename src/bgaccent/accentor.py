@@ -79,13 +79,15 @@ class Accentor:
             stats.total_tokens += 1
             accented, detail = self._process_word_token(token, sentence_words)
 
-            result_tokens.append(Token(
-                kind=token.kind,
-                text=accented,
-                original=accented,
-                line=token.line,
-                col=token.col,
-            ))
+            result_tokens.append(
+                Token(
+                    kind=token.kind,
+                    text=accented,
+                    original=accented,
+                    line=token.line,
+                    col=token.col,
+                )
+            )
 
             if detail is not None:
                 details.append(detail)
@@ -169,9 +171,7 @@ class Accentor:
                 "column": token.col,
             }
 
-        return self._accent_single_word_with_detail(
-            word, token.line, token.col, sentence_words
-        )
+        return self._accent_single_word_with_detail(word, token.line, token.col, sentence_words)
 
     def _accent_single_word_with_detail(
         self, word: str, line: int, col: int, sentence_words: list[str] | None = None
@@ -349,10 +349,7 @@ class Accentor:
             sorted_results = sorted(results, key=lambda r: (priority_key(r[1]), r[0]))
             chosen_ordinal, chosen_mask = sorted_results[0]
             accented = place_accent(word, chosen_ordinal)
-            alternatives = [
-                {"vowel_index": r[0], "source_mask": r[1]}
-                for r in sorted_results[1:]
-            ]
+            alternatives = [{"vowel_index": r[0], "source_mask": r[1]} for r in sorted_results[1:]]
             return accented, {
                 "word": word,
                 "accented": accented,

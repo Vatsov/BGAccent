@@ -13,14 +13,16 @@ class TestSourcesLock:
     def test_parse_lock(self, tmp_path: Path) -> None:
         lock = tmp_path / "sources.lock"
         lock.write_text(
-            json.dumps({
-                "bayganyu": {
-                    "url": "https://example.com/bg.csv",
-                    "commit": "abc123",
-                    "sha256": "deadbeef",
-                    "license": "MIT",
+            json.dumps(
+                {
+                    "bayganyu": {
+                        "url": "https://example.com/bg.csv",
+                        "commit": "abc123",
+                        "sha256": "deadbeef",
+                        "license": "MIT",
+                    }
                 }
-            }),
+            ),
             encoding="utf-8",
         )
         data = parse_sources_lock(lock)
@@ -104,9 +106,7 @@ class TestBuildSafety:
         csv = tmp_path / "bg.csv"
         csv.write_text("тест,тес'т\nпланината,план'ината\n", encoding="utf-8")
         out = tmp_path / "out.marisa"
-        build_trie(
-            csv, out, source_name="test", source_commit="x", allow_invalid=True
-        )
+        build_trie(csv, out, source_name="test", source_commit="x", allow_invalid=True)
         trie: marisa_trie.RecordTrie[tuple[int, int]] = marisa_trie.RecordTrie("HB")
         trie.load(str(out))
         assert "планината" in trie

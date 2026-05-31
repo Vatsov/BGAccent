@@ -8,15 +8,36 @@ if TYPE_CHECKING:
     import marisa_trie
 
 _SUFFIXES: list[str] = [
-    "овете", "ищата", "етата",
-    "ците", "ните", "ите", "ове", "ета", "ища",
-    "ата", "ята",
-    "вам", "ваш", "ват",
-    "те", "та", "ът", "ят", "то",
-    "ам", "аш", "ат",
-    "ем", "еш", "ет",
-    "им", "иш",
-    "ям", "яш", "ят",
+    "овете",
+    "ищата",
+    "етата",
+    "ците",
+    "ните",
+    "ите",
+    "ове",
+    "ета",
+    "ища",
+    "ата",
+    "ята",
+    "вам",
+    "ваш",
+    "ват",
+    "те",
+    "та",
+    "ът",
+    "ят",
+    "то",
+    "ам",
+    "аш",
+    "ат",
+    "ем",
+    "еш",
+    "ет",
+    "им",
+    "иш",
+    "ям",
+    "яш",
+    "ят",
     "и",
 ]
 
@@ -46,9 +67,7 @@ class SuffixStripper:
         return candidates
 
     @staticmethod
-    def _add_candidate(
-        candidate: str, original: str, out: list[str], seen: set[str]
-    ) -> None:
+    def _add_candidate(candidate: str, original: str, out: list[str], seen: set[str]) -> None:
         if candidate != original and candidate not in seen:
             seen.add(candidate)
             out.append(candidate)
@@ -71,9 +90,7 @@ def morphology_lookup(
     return None
 
 
-def transfer_stress(
-    base_ordinal: int, base_word: str, inflected_word: str
-) -> int | None:
+def transfer_stress(base_ordinal: int, base_word: str, inflected_word: str) -> int | None:
     inflected_vowel_count = count_vowels(inflected_word)
     if base_ordinal >= inflected_vowel_count:
         return None

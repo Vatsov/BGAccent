@@ -16,9 +16,7 @@ class TestFileIO:
         inp = tmp_path / "input.txt"
         out = tmp_path / "output.txt"
         inp.write_text("планината е красива", encoding="utf-8")
-        result = runner.invoke(
-            app, [str(inp), "-o", str(out), "--trie", str(TEST_TRIE_PATH)]
-        )
+        result = runner.invoke(app, [str(inp), "-o", str(out), "--trie", str(TEST_TRIE_PATH)])
         assert result.exit_code == 0
         content = out.read_text(encoding="utf-8")
         assert "плани́ната" in content
@@ -26,9 +24,7 @@ class TestFileIO:
     def test_default_stdout(self, tmp_path: Path) -> None:
         inp = tmp_path / "input.txt"
         inp.write_text("планината", encoding="utf-8")
-        result = runner.invoke(
-            app, [str(inp), "--trie", str(TEST_TRIE_PATH)]
-        )
+        result = runner.invoke(app, [str(inp), "--trie", str(TEST_TRIE_PATH)])
         assert result.exit_code == 0
         assert "плани́ната" in result.stdout
 
@@ -52,9 +48,7 @@ class TestFileIO:
     def test_utf8_sig_bom_input(self, tmp_path: Path) -> None:
         inp = tmp_path / "bom.txt"
         inp.write_bytes(b"\xef\xbb\xbf" + "планината".encode())
-        result = runner.invoke(
-            app, [str(inp), "--trie", str(TEST_TRIE_PATH)]
-        )
+        result = runner.invoke(app, [str(inp), "--trie", str(TEST_TRIE_PATH)])
         assert result.exit_code == 0
         assert "плани́ната" in result.stdout
 
@@ -133,9 +127,7 @@ class TestCoreFlags:
 class TestDataLoader:
     def test_meta_json_bad_version(self, tmp_path: Path) -> None:
         meta = tmp_path / "bg.marisa.meta.json"
-        meta.write_text(
-            json.dumps({"format_version": 99}), encoding="utf-8"
-        )
+        meta.write_text(json.dumps({"format_version": 99}), encoding="utf-8")
         from bgaccent.data import _validate_meta
 
         with pytest.raises(ValueError, match="Unsupported"):
@@ -143,9 +135,7 @@ class TestDataLoader:
 
     def test_meta_json_good_version(self, tmp_path: Path) -> None:
         meta = tmp_path / "bg.marisa.meta.json"
-        meta.write_text(
-            json.dumps({"format_version": 1}), encoding="utf-8"
-        )
+        meta.write_text(json.dumps({"format_version": 1}), encoding="utf-8")
         from bgaccent.data import _validate_meta
 
         _validate_meta(meta)

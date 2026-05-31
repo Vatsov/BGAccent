@@ -9,6 +9,7 @@ from bgaccent.unicode import count_vowels, strip_accents
 
 try:
     import onnxruntime
+
     _HAS_ONNX = True
 except ImportError:
     _HAS_ONNX = False
@@ -67,6 +68,7 @@ class NeuralStressPredictor:
 
         encoded = self._encode(clean)
         import numpy as np
+
         input_array = np.array([encoded], dtype=np.int64)
         outputs = self._session.run(None, {"input": input_array})  # type: ignore[union-attr]
         log_probs = outputs[0][0]
@@ -80,9 +82,7 @@ class NeuralStressPredictor:
             return None
         return max_idx, confidence
 
-    def predict_batch(
-        self, words: list[str]
-    ) -> list[tuple[int, float] | None]:
+    def predict_batch(self, words: list[str]) -> list[tuple[int, float] | None]:
         if not words:
             return []
         return [self.predict(w) for w in words]
