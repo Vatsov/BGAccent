@@ -66,6 +66,14 @@ class CustomDict:
                 continue
 
             stripped = accented.replace(COMBINING_ACUTE, "")
+            if stripped.lower() != word.lower():
+                print(
+                    f"Warning: {path}:{line_num}: accented form '{accented}' does not "
+                    f"match word '{word}', skipping",
+                    file=sys.stderr,
+                )
+                continue
+
             vowel_index = 0
             for ch in stripped[: accent_pos - 1]:
                 if ch in BULGARIAN_VOWELS:

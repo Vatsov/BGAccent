@@ -98,6 +98,15 @@ class TestValidation:
         assert cd.lookup("тест") is None
         assert "skipping" in capsys.readouterr().err.lower()
 
+    def test_accented_form_mismatch_skipped(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        tsv = tmp_path / "bad.tsv"
+        tsv.write_text("планина\tво́да\n", encoding="utf-8")
+        cd = CustomDict.from_tsv(tsv)
+        assert cd.lookup("планина") is None
+        assert "does not" in capsys.readouterr().err.lower()
+
     def test_duplicate_last_wins(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         tsv = tmp_path / "dup.tsv"
         tsv.write_text("тест\tте́ст\nтест\tте́ст\n", encoding="utf-8")

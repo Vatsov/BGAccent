@@ -85,7 +85,17 @@ def morphology_lookup(
         results = trie.get(candidate.lower())
         if results:
             vowel_ordinal = results[0][0]
-            suffix = word[len(candidate) :] if word.startswith(candidate) else ""
+            # The stripped surface suffix is the part of ``word`` past the prefix
+            # it shares with the matched base form. This is correct both when the
+            # base is a bare stem (``градове`` → ``град`` → "ове") and when a base
+            # ending was restored (``планините`` → ``планина`` → "ите"), where the
+            # candidate is *not* a prefix of the word.
+            prefix_len = 0
+            for word_char, candidate_char in zip(word, candidate, strict=False):
+                if word_char != candidate_char:
+                    break
+                prefix_len += 1
+            suffix = word[prefix_len:]
             return vowel_ordinal, candidate, suffix
     return None
 

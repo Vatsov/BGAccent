@@ -146,6 +146,14 @@ class Accentor:
     ) -> tuple[str, dict[str, Any] | None]:
         word = token.text
 
+        if COMBINING_ACUTE in word and self._mode == "preserve":
+            return word, {
+                "word": strip_accents(word),
+                "status": "already_accented",
+                "line": token.line,
+                "column": token.col,
+            }
+
         if "-" in word:
             accented, status = self._process_hyphenated(word)
             if status == "accented":
@@ -202,7 +210,9 @@ class Accentor:
                     "column": col,
                 }
             if results:
-                vowel_ordinal, source_mask = results[0]
+                vowel_ordinal, source_mask = sorted(
+                    results, key=lambda r: (priority_key(r[1]), r[0])
+                )[0]
                 accented = place_accent(clean, vowel_ordinal)
                 return accented, {
                     "word": clean,
@@ -335,7 +345,7 @@ class Accentor:
             resolved = self._disambiguator.disambiguate(
                 strip_accents(word).lower(), ctx, list(results)
             )
-            if resolved is not None:
+            if resolved is not None and resolved in {r[0] for r in results}:
                 accented = place_accent(word, resolved)
                 return accented, {
                     "word": word,
@@ -384,6 +394,12 @@ class Accentor:
         report detail.
         """
         lookup_key = strip_accents(word).lower()
+
+        custom_entry = self._custom.lookup(lookup_key)
+        if custom_entry is not None:
+            accented = place_accent(word, custom_entry.vowel_index)
+            return accented, ("accented" if accented != word else "skipped_monosyllabic")
+
         results = self._trie.get(lookup_key)
         if results:
             vowel_ordinal, _source_mask = results[0]

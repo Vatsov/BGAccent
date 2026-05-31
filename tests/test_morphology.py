@@ -55,6 +55,12 @@ class TestMorphologyLookup:
         assert base == "планина"
         assert vowel_ordinal == 1
 
+    def test_reports_stripped_surface_suffix_for_restored_base(self) -> None:
+        trie = self._build_trie({"планина": (1, 1)})
+        result = morphology_lookup("планините", trie)
+        assert result is not None
+        assert result[2] == "ите"
+
     def test_finds_gradovete_via_grad(self) -> None:
         trie = self._build_trie({"град": (0, 1)})
         result = morphology_lookup("градовете", trie)

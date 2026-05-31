@@ -54,31 +54,25 @@ class StressPredictor:
         if count_vowels(clean) < 2:
             return None
 
-        best_suffix = ""
-        best_ordinal = -1
-        best_confidence = 0.0
+        n_vowels = count_vowels(clean)
 
+        # Longest suffix first; return the longest one that *also* clears the
+        # confidence threshold and is in range, rather than letting a single
+        # low-confidence longest suffix reject otherwise-usable shorter matches.
         for n in range(min(_MAX_NGRAM, len(clean)), _MIN_NGRAM - 1, -1):
             suffix = clean[-n:]
-            if suffix in self._table:
-                freq = self._table[suffix]
-                total = sum(freq.values())
-                if total == 0:
-                    continue
-                majority_ordinal = max(freq, key=lambda k: freq[k])
-                confidence = freq[majority_ordinal] / total
-                if len(suffix) > len(best_suffix):
-                    best_suffix = suffix
-                    best_ordinal = majority_ordinal
-                    best_confidence = confidence
+            freq = self._table.get(suffix)
+            if not freq:
+                continue
+            total = sum(freq.values())
+            if total == 0:
+                continue
+            majority_ordinal = max(freq, key=lambda k: freq[k])
+            confidence = freq[majority_ordinal] / total
+            if confidence < self._min_confidence:
+                continue
+            if majority_ordinal >= n_vowels:
+                continue
+            return majority_ordinal, confidence
 
-        if not best_suffix:
-            return None
-
-        if best_confidence < self._min_confidence:
-            return None
-
-        if best_ordinal >= count_vowels(clean):
-            return None
-
-        return best_ordinal, best_confidence
+        return None

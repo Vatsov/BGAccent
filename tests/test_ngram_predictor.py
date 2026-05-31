@@ -86,6 +86,14 @@ class TestConfidenceThreshold:
                 assert result is None
                 break
 
+    def test_shorter_high_confidence_suffix_beats_low_confidence_longer(self) -> None:
+        trie = _load_trie()
+        predictor = StressPredictor(trie, min_confidence=0.7)
+        # "това" (len 4) is a coin-flip; "ова" (len 3) is 90% ordinal 2.
+        predictor._table = {"това": {0: 1, 1: 1}, "ова": {2: 9, 0: 1}}
+        predictor._built = True
+        assert predictor.predict("тестова") == (2, 0.9)
+
     def test_low_threshold_accepts_more(self) -> None:
         trie = _load_trie()
         pred_strict = StressPredictor(trie, min_confidence=0.99)

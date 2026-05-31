@@ -72,6 +72,53 @@ class TestHomographs:
         assert hom[0]["source_mask"] == 4
 
 
+class TestHyphenatedPreserve:
+    def test_preserve_existing_accent_on_hyphenated(self, test_trie_path: Path) -> None:
+        acc = Accentor(trie_path=test_trie_path)
+        assert acc.accent("по-го́лям") == "по-го́лям"
+
+    def test_preserve_hyphenated_already_accented_stat(self, test_trie_path: Path) -> None:
+        acc = Accentor(trie_path=test_trie_path)
+        result = acc.accent_with_report("по-го́лям")
+        assert result.stats.already_accented == 1
+
+
+class TestHyphenatedCustomOverride:
+    def test_custom_entry_for_whole_hyphenated_token(
+        self, test_trie_path: Path, tmp_path: Path
+    ) -> None:
+        tsv = tmp_path / "custom.tsv"
+        tsv.write_text("по-голям\tпо́-голям\n", encoding="utf-8")
+        acc = Accentor(trie_path=test_trie_path, custom_dicts=[tsv])
+        # Trie alone yields ordinal 2 ("по-голя́м"); custom must override.
+        assert acc.accent("по-голям") == "по́-голям"
+
+
+class TestReplaceSafeHomographPriority:
+    def test_replace_safe_respects_source_priority(self, test_trie_path: Path) -> None:
+        # "килим": wiktionary@ordinal0 vs bgospodinov@ordinal1 (higher priority).
+        # Replace-safe must honour priority, not trie record order.
+        acc = Accentor(trie_path=test_trie_path, mode="replace-safe")
+        assert acc.accent("ки́лим") == "кили́м"
+
+
+class TestPosOrdinalValidation:
+    def test_out_of_candidate_pos_result_falls_back_to_priority(self, test_trie_path: Path) -> None:
+        acc = Accentor(trie_path=test_trie_path)
+
+        class _StubDisambiguator:
+            def disambiguate(
+                self, word: str, ctx: list[str], results: list[tuple[int, int]]
+            ) -> int | None:
+                return 5  # not a candidate ordinal for "замък" ({0, 1})
+
+        acc._disambiguator = _StubDisambiguator()  # type: ignore[assignment]
+        result = acc.accent_with_report("замък")
+        hom = [d for d in result.details if d.get("status") == "homograph_flagged"]
+        assert len(hom) == 1
+        assert hom[0]["disambiguation"] == "priority_fallback"
+
+
 class TestOOVDetection:
     def test_cyrillic_oov_script(self, test_trie_path: Path) -> None:
         acc = Accentor(trie_path=test_trie_path)
