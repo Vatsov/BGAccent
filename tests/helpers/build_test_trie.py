@@ -5,6 +5,13 @@ Run: uv run python tests/helpers/build_test_trie.py
 Each entry: (word, vowel_ordinal, source_mask)
   vowel_ordinal: 0-based index among Bulgarian vowels in the NFC-normalized word
   source_mask: 1=bayganyu, 2=wiktionary, 4=bgospodinov
+
+Note: some ordinals here are deliberately *not* the linguistically correct
+stress used by the bundled 230K dictionary — e.g. "планината" is ordinal 1
+("плани́ната") here, whereas the real dict yields "Планина́та" (ordinal 2).
+This keeps fixture-based tests from silently passing against the shipped data
+and decouples them from dictionary updates. Do not "correct" these to match
+the README examples, which document the bundled dict.
 """
 
 from __future__ import annotations

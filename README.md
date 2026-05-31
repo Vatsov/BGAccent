@@ -46,7 +46,7 @@ bgaccent [OPTIONS] [INPUT]
 | Flag | Description |
 |------|-------------|
 | `-o`, `--output PATH` | Output file (default: stdout) |
-| `--custom PATH` | Custom dictionary TSV, repeatable |
+| `--custom PATH` | Custom dictionary TSV (repeatable, later files override earlier) |
 | `--mode {preserve,replace-safe}` | `preserve` (default): keep existing accents. `replace-safe`: re-accent if dictionary match exists |
 | `--format {text,ssml}` | Output format. `ssml` wraps accented words in `<phoneme>` tags with IPA |
 | `--report PATH` | Write JSON report (stats, OOV words, homographs, per-word details) |
@@ -54,7 +54,6 @@ bgaccent [OPTIONS] [INPUT]
 | `--diff` | Show per-occurrence changes (`L3:10 много -> мно́го`) |
 | `--unknown-only` | Print OOV words only, one per line |
 | `--out-dir PATH` | Batch mode: output directory for multiple input files |
-| `--custom PATH` | Custom dictionary TSV (repeatable, later files override earlier) |
 | `--trie PATH` | Custom .marisa trie (default: bundled) |
 | `--mark-monosyllables` | Place accent on monosyllabic words |
 | `--fail-on-oov` | Exit 1 if OOV words found (use with `--check`) |
@@ -144,6 +143,12 @@ Homographs (words with multiple valid stress positions) are flagged in the
 report for manual review. POS-based disambiguation (spaCy) runs automatically
 when the model is available; a transformer-based disambiguator is scaffolded
 for Phase 2 and is not wired into the runtime pipeline.
+
+> **Known limitation:** POS disambiguation resolves a homograph from the first
+> occurrence of that word form in the sentence. If the same homograph appears
+> more than once in one sentence with different parts of speech, every
+> occurrence currently receives the first occurrence's stress. Per-occurrence
+> resolution is deferred to Phase 2.
 
 ## Building the dictionary trie
 
