@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
+
 from bgaccent.accentor import Accentor
 from bgaccent.transformer_disambiguator import (
     HomographSample,
@@ -26,11 +28,20 @@ class TestTrainingDataFormat:
 
     def test_load_training_data(self, tmp_path: Path) -> None:
         import json
+
         data = [
-            {"sentence": "Старият замък", "target_word": "замък",
-             "target_index": 1, "correct_ordinal": 0},
-            {"sentence": "Той замък торбата", "target_word": "замък",
-             "target_index": 1, "correct_ordinal": 1},
+            {
+                "sentence": "Старият замък",
+                "target_word": "замък",
+                "target_index": 1,
+                "correct_ordinal": 0,
+            },
+            {
+                "sentence": "Той замък торбата",
+                "target_word": "замък",
+                "target_index": 1,
+                "correct_ordinal": 1,
+            },
         ]
         path = tmp_path / "train.json"
         path.write_text(json.dumps(data), encoding="utf-8")
@@ -46,7 +57,7 @@ class TestTransformerDisambiguator:
         assert result is None
 
     def test_with_mock_session(self) -> None:
-        import numpy as np
+        np = pytest.importorskip("numpy")
         session = MagicMock()
         session.run.return_value = [np.array([[0.9, 0.1]])]
         dis = TransformerDisambiguator(model_path=None)

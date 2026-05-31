@@ -118,6 +118,9 @@ def export_onnx(
         output_names=["output"],
         dynamic_axes={"input": {0: "batch", 1: "seq_len"}, "output": {0: "batch"}},
         opset_version=14,
+        # Force the legacy TorchScript exporter: the dynamo path needs the
+        # optional `onnxscript` package, which isn't a declared dependency.
+        dynamo=False,
     )
     vocab_path = output_path.parent / "vocab.json"
     vocab_path.write_text(json.dumps(vocab, ensure_ascii=False), encoding="utf-8")
