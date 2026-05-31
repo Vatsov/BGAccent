@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel superseded runs on the same ref (e.g. force-push to a PR branch).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --dev
+      - name: Ruff lint
+        run: uv run ruff check src/ tests/
+      - name: Ruff format check
+        run: uv run ruff format --check src/ tests/
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --dev
+      - run: uv run mypy src/
+
+  test-minimal:
+    # Clean dev install with NO optional extras — the environment a contributor
+    # gets from `make dev`. This is the guard for the collection-time regression
+    # class (see tests/test_import_hygiene.py): if any test eagerly imports an
+    # optional dep (torch/onnx/onnxruntime/spacy), `--collect-only` fails here
+    # instead of silently passing in an extras-laden environment.
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
+      - run: uv sync --dev
+      - name: Collection sanity (must not fail without optional extras)
+        run: uv run pytest --collect-only -q
+      - name: Test suite (optional-dep tests skip cleanly)
+        run: uv run pytest
+
+  test-full:
+    # Full install WITH optional extras so the neural (torch/ONNX) and spaCy
+    # disambiguation paths actually execute rather than skip.
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
+      - run: uv sync --dev --extra nlp --extra train
+      - name: Test suite with coverage
+        run: uv run pytest --cov=bgaccent --cov-report=term-missing
