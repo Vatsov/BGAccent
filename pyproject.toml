@@ -17,6 +17,9 @@ dependencies = [
 
 [project.optional-dependencies]
 nlp = ["spacy>=3.7"]
+# Inference only: run a pre-trained ONNX stress model. Lightweight (no torch).
+neural = ["onnxruntime>=1.16"]
+# Training: build/export a model. Pulls in torch; heavier, fewer platforms.
 train = ["torch>=2.0", "onnx>=1.14", "onnxruntime>=1.16"]
 
 [project.scripts]

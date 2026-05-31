@@ -94,6 +94,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+neural = [
+    { name = "onnxruntime" },
+]
 nlp = [
     { name = "spacy" },
 ]
@@ -115,13 +118,14 @@ dev = [
 requires-dist = [
     { name = "marisa-trie", specifier = ">=1.1" },
     { name = "onnx", marker = "extra == 'train'", specifier = ">=1.14" },
+    { name = "onnxruntime", marker = "extra == 'neural'", specifier = ">=1.16" },
     { name = "onnxruntime", marker = "extra == 'train'", specifier = ">=1.16" },
     { name = "rich", specifier = ">=13" },
     { name = "spacy", marker = "extra == 'nlp'", specifier = ">=3.7" },
     { name = "torch", marker = "extra == 'train'", specifier = ">=2.0" },
     { name = "typer", specifier = ">=0.12" },
 ]
-provides-extras = ["nlp", "train"]
+provides-extras = ["nlp", "neural", "train"]
 
 [package.metadata.requires-dev]
 dev = [

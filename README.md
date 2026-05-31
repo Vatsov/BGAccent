@@ -17,8 +17,9 @@ pip install bgaccent
 Optional dependencies:
 
 ```bash
-pip install bgaccent[nlp]    # spaCy POS-based homograph disambiguation
-pip install bgaccent[train]  # PyTorch + ONNX for neural stress prediction training
+pip install bgaccent[nlp]     # spaCy POS-based homograph disambiguation
+pip install bgaccent[neural]  # onnxruntime: run a pre-trained ONNX stress model (no torch)
+pip install bgaccent[train]   # PyTorch + ONNX to train/export a model
 ```
 
 ## Quick start
@@ -133,8 +134,9 @@ Words are resolved in this order — first match wins:
 2. **Trie lookup** — bundled 230K-word dictionary
 3. **Morphological fallback** — suffix stripping to find base forms
 4. **Neural prediction** — BiLSTM/ONNX stress predictor (Python API only,
-   requires `bgaccent[train]` and `neural_model_path`/`neural_vocab_path`
-   passed to `Accentor`)
+   requires `bgaccent[neural]` to run a pre-trained model and
+   `neural_model_path`/`neural_vocab_path` passed to `Accentor`; training a
+   model needs `bgaccent[train]`)
 5. **N-gram analogy** — suffix-based stress prediction from known patterns
    (Python API only, requires `enable_prediction=True` on `Accentor`)
 6. **OOV** — word reported as out-of-vocabulary
