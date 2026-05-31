@@ -8,6 +8,7 @@
   },
   "bgospodinov": {
     "url": "https://github.com/bgospodinov/bulgarian_dictionary (build from source: ./build --no-slovnik)",
+    "manual": true,
     "sha256": "13a051db4f9a28024446e54e83affbd0569373053036b45bf085d6324ce1a86b",
     "license": "GPL-3.0",
     "filename": "bgospodinov.db"

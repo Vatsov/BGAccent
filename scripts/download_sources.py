@@ -22,8 +22,7 @@ def verify_checksum(file_path: Path, expected_sha256: str) -> None:
     actual = hashlib.sha256(file_path.read_bytes()).hexdigest()
     if actual != expected_sha256:
         raise ValueError(
-            f"SHA256 mismatch for {file_path}: "
-            f"expected {expected_sha256}, got {actual}"
+            f"SHA256 mismatch for {file_path}: expected {expected_sha256}, got {actual}"
         )
 
 
@@ -44,6 +43,13 @@ def main(lock_path: Path, output_dir: Path) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     for source_name, info in sources.items():
+        if info.get("manual"):
+            print(
+                f"Skipping {source_name}: manual build source, "
+                f"build and place it yourself ({info['url']})"
+            )
+            continue
+
         url = info["url"]
         expected_sha256 = info["sha256"]
         filename = info.get("filename", f"{source_name}.csv")

@@ -28,6 +28,28 @@ class TestSourcesLock:
         data = parse_sources_lock(lock)
         assert data["bayganyu"]["sha256"] == "deadbeef"
 
+    def test_manual_source_is_skipped(self, tmp_path: Path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+        import scripts.download_sources as ds
+
+        lock = tmp_path / "sources.lock"
+        lock.write_text(
+            json.dumps(
+                {
+                    "bgospodinov": {
+                        "url": "not a real url (build from source)",
+                        "manual": True,
+                        "sha256": "deadbeef",
+                        "filename": "bgospodinov.db",
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        attempted: list[str] = []
+        monkeypatch.setattr(ds, "download_source", lambda url, dest: attempted.append(url))
+        ds.main(lock, tmp_path / "out")
+        assert attempted == []
+
     def test_missing_sha256_raises(self, tmp_path: Path) -> None:
         lock = tmp_path / "sources.lock"
         lock.write_text(
@@ -92,6 +114,32 @@ class TestBayganyuCSVParsing:
         results = trie["планината"]
         assert len(results) == 1
         assert results[0] == (1, 1)
+
+
+class TestBayganyuValidation:
+    def test_word_with_yot_is_kept(self, tmp_path: Path) -> None:
+        # "й" is not a vowel in NFC but decomposes to и + breve in NFD; the old
+        # NFC/NFD vowel-count guard wrongly skipped every word containing it.
+        csv = tmp_path / "bg.csv"
+        csv.write_text("случай,сл'учай\n", encoding="utf-8")
+        entries = parse_bayganyu_csv(csv)
+        assert len(entries) == 1
+        assert entries[0][0] == "случай"
+        assert entries[0][1] == 0
+
+    def test_stressed_form_must_match_base_word(self, tmp_path: Path) -> None:
+        csv = tmp_path / "bg.csv"
+        csv.write_text("планина,в'ода\n", encoding="utf-8")
+        entries = parse_bayganyu_csv(csv)
+        assert entries == []
+
+    def test_second_vowel_stress_ordinal(self, tmp_path: Path) -> None:
+        csv = tmp_path / "bg.csv"
+        # apostrophe before final а: stress on 2nd vowel (ordinal 1)
+        csv.write_text("вода,вод'а\n", encoding="utf-8")
+        entries = parse_bayganyu_csv(csv)
+        assert len(entries) == 1
+        assert entries[0][1] == 1
 
 
 class TestBuildSafety:

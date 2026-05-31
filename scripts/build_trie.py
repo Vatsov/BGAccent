@@ -70,13 +70,19 @@ def parse_bayganyu_csv(csv_path: Path) -> list[tuple[str, int, int]]:
             if ch.lower() in BULGARIAN_VOWELS:
                 vowel_index += 1
 
-        nfc_vowels = sum(1 for c in base_word if c.lower() in BULGARIAN_VOWELS)
-        nfd_word = unicodedata.normalize("NFD", base_word)
-        nfd_vowels = sum(1 for c in nfd_word if c.lower() in BULGARIAN_VOWELS)
-        if nfc_vowels != nfd_vowels:
+        if clean.lower() != base_word.lower():
             print(
-                f"Warning: {csv_path}:{line_num}: NFC/NFD vowel count mismatch "
-                f"({nfc_vowels} vs {nfd_vowels}), skipping",
+                f"Warning: {csv_path}:{line_num}: stressed form '{clean}' does not match "
+                f"base word '{base_word}', skipping",
+                file=sys.stderr,
+            )
+            continue
+
+        base_vowels = sum(1 for c in base_word if c.lower() in BULGARIAN_VOWELS)
+        if vowel_index >= base_vowels:
+            print(
+                f"Warning: {csv_path}:{line_num}: stress ordinal {vowel_index} out of range "
+                f"for '{base_word}' ({base_vowels} vowels), skipping",
                 file=sys.stderr,
             )
             continue
@@ -102,9 +108,7 @@ def build_trie(
     first_line = all_lines[0].strip() if all_lines else ""
     header_offset = 1 if first_line.startswith("word") else 0
     total_lines = sum(
-        1
-        for raw in all_lines[header_offset:]
-        if raw.strip() and not raw.strip().startswith("#")
+        1 for raw in all_lines[header_offset:] if raw.strip() and not raw.strip().startswith("#")
     )
     invalid_count = total_lines - len(entries)
 
@@ -169,8 +173,7 @@ def parse_bgospodinov_db(db_path: Path) -> list[tuple[str, int, int]]:
     conn = sqlite3.connect(str(db_path))
 
     cursor = conn.execute(
-        "SELECT wordform, wordform_stressed FROM wordform "
-        "WHERE wordform_stressed IS NOT NULL"
+        "SELECT wordform, wordform_stressed FROM wordform WHERE wordform_stressed IS NOT NULL"
     )
 
     for wordform, stressed in cursor:
