@@ -142,9 +142,12 @@ Words are resolved in this order — first match wins:
 6. **OOV** — word reported as out-of-vocabulary
 
 Homographs (words with multiple valid stress positions) are flagged in the
-report for manual review. POS-based disambiguation (spaCy) runs automatically
-when the model is available; a transformer-based disambiguator is scaffolded
-for Phase 2 and is not wired into the runtime pipeline.
+report for manual review. POS-based disambiguation (spaCy) is Python-API-only:
+it runs only when you pass a loaded spaCy pipeline via
+`Accentor(disambiguator_model=...)`. Installing `bgaccent[nlp]` provides the
+dependency but does not enable disambiguation on its own, and the CLI never
+loads spaCy. A transformer-based disambiguator is scaffolded for Phase 2 and is
+not wired into the runtime pipeline.
 
 > **Known limitation:** POS disambiguation resolves a homograph from the first
 > occurrence of that word form in the sentence. If the same homograph appears
