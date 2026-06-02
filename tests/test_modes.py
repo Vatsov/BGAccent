@@ -122,9 +122,7 @@ class TestHyphenatedProvenance:
         assert d["status"] == "accented"
         assert "compound" not in d
 
-    def test_compound_detail_has_parts_and_no_top_level_mask(
-        self, test_trie_path: Path
-    ) -> None:
+    def test_compound_detail_has_parts_and_no_top_level_mask(self, test_trie_path: Path) -> None:
         # A per-part fallback compound must NOT carry a synthesized scalar mask;
         # provenance lives in the per-part details instead.
         acc = Accentor(trie_path=test_trie_path)

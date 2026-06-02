@@ -81,6 +81,7 @@ class TestTransformerDisambiguator:
     def test_inference_failure_warns_and_returns_none(
         self, capsys: pytest.CaptureFixture[str]
     ) -> None:
+        pytest.importorskip("numpy")
         session = MagicMock()
         session.run.side_effect = RuntimeError("input shape mismatch")
         dis = TransformerDisambiguator(model_path=None)
@@ -89,8 +90,7 @@ class TestTransformerDisambiguator:
         result = dis.disambiguate("замък", ["Старият", "замък"], [(0, 1), (1, 1)])
         assert result is None
         assert (
-            "Warning: transformer inference failed: input shape mismatch"
-            in capsys.readouterr().err
+            "Warning: transformer inference failed: input shape mismatch" in capsys.readouterr().err
         )
 
 

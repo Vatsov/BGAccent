@@ -369,9 +369,7 @@ class Accentor:
             "column": col,
         }
 
-    def _process_hyphenated(
-        self, word: str, line: int, col: int
-    ) -> tuple[str, dict[str, Any]]:
+    def _process_hyphenated(self, word: str, line: int, col: int) -> tuple[str, dict[str, Any]]:
         """Accent a hyphenated token and return ``(accented, detail)``.
 
         Whole-token matches (custom dict, then trie) emit a flat detail with the
