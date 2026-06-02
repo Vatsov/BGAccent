@@ -104,6 +104,14 @@ class TestBgospodinovParsing:
         entries = parse_bgospodinov_db(db)
         assert len(entries) == 0
 
+    def test_skip_stressed_form_not_matching_wordform(self, tmp_path: Path) -> None:
+        db = tmp_path / "bgospodinov.db"
+        # Stressed spelling strips to "вода", which is not the "планина" key;
+        # binding вода's ordinal to планина would be silently wrong → reject.
+        _make_bgospodinov_db(db, [("планина", "вода`")])
+        entries = parse_bgospodinov_db(db)
+        assert len(entries) == 0
+
     def test_nfc_normalization(self, tmp_path: Path) -> None:
         import unicodedata
 
@@ -147,6 +155,17 @@ class TestWiktionaryParsing:
         )
         entries = parse_wiktionary_jsonl(jsonl)
         assert entries[0][2] == 2
+
+    def test_skip_accent_after_consonant(self, tmp_path: Path) -> None:
+        jsonl = tmp_path / "wiktionary.jsonl"
+        # U+0301 after the consonant "с" must be rejected, not silently
+        # assigned to the preceding vowel (mirrors the bgospodinov check).
+        _make_wiktionary_jsonl(
+            jsonl,
+            [{"word": "тес́т", "lang_code": "bg", "pos": "noun", "forms": []}],
+        )
+        entries = parse_wiktionary_jsonl(jsonl)
+        assert len(entries) == 0
 
     def test_skip_non_bulgarian(self, tmp_path: Path) -> None:
         jsonl = tmp_path / "wiktionary.jsonl"

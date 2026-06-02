@@ -21,6 +21,10 @@ from bgaccent.sources import (
 BULGARIAN_VOWELS = frozenset("аеиоуъяюАЕИОУЪЯЮ")
 
 
+def _count_vowels(word: str) -> int:
+    return sum(1 for c in word if c.lower() in BULGARIAN_VOWELS)
+
+
 def parse_bayganyu_csv(csv_path: Path) -> list[tuple[str, int, int]]:
     entries: list[tuple[str, int, int]] = []
 
@@ -191,15 +195,26 @@ def parse_bgospodinov_db(db_path: Path) -> list[tuple[str, int, int]]:
             )
             continue
 
-        vowel_count = 0
-        for ch in stressed[:backtick_pos]:
-            if ch.lower() in BULGARIAN_VOWELS:
-                vowel_count += 1
-
-        if vowel_count == 0:
+        clean = unicodedata.normalize("NFC", stressed.replace("`", ""))
+        if clean.lower() != wordform.lower():
+            print(
+                f"Warning: bgospodinov stressed form '{clean}' does not match "
+                f"wordform '{wordform}', skipping",
+                file=sys.stderr,
+            )
             continue
 
-        entries.append((wordform.lower(), vowel_count - 1, 4))
+        ordinal = _count_vowels(stressed[:backtick_pos]) - 1
+        base_vowels = _count_vowels(wordform)
+        if ordinal >= base_vowels:
+            print(
+                f"Warning: bgospodinov stress ordinal {ordinal} out of range "
+                f"for '{wordform}' ({base_vowels} vowels), skipping",
+                file=sys.stderr,
+            )
+            continue
+
+        entries.append((wordform.lower(), ordinal, 4))
 
     conn.close()
     return entries
@@ -234,19 +249,17 @@ def parse_wiktionary_jsonl(jsonl_path: Path) -> list[tuple[str, int, int]]:
                 if "́" not in form:
                     continue
 
-                plain = form.replace("́", "")
-
-                vowel_count = 0
-                for ch in form:
-                    if ch == "́":
-                        break
-                    if ch.lower() in BULGARIAN_VOWELS:
-                        vowel_count += 1
-
-                if vowel_count == 0:
+                acute_pos = form.find("́")
+                if acute_pos < 1 or form[acute_pos - 1].lower() not in BULGARIAN_VOWELS:
+                    print(
+                        f"Warning: wiktionary accent not after vowel in '{form}', skipping",
+                        file=sys.stderr,
+                    )
                     continue
 
-                ordinal = vowel_count - 1
+                plain = form.replace("́", "")
+
+                ordinal = _count_vowels(form[:acute_pos]) - 1
                 key = (plain.lower(), ordinal)
                 if key not in seen:
                     seen.add(key)
