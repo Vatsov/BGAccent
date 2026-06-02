@@ -35,8 +35,50 @@ class TestSsmlWrapping:
 
     def test_quote_in_value_stays_valid_xml(self) -> None:
         # A double-quote reaching the ph attribute must not break the XML.
+        # (With tokenizer-driven rendering a quote can no longer reach `ph` —
+        # the `word` regex excludes it — but the result must still be valid XML.)
         result = format_ssml('a"́')
         ET.fromstring(f"<root>{result}</root>")
+
+    def test_trailing_punctuation_outside_phoneme(self) -> None:
+        result = format_ssml("плани́ната,")
+        assert result == '<phoneme alphabet="ipa" ph="plaˈninata">планината</phoneme>,'
+        ET.fromstring(f"<root>{result}</root>")
+
+    def test_leading_and_trailing_punctuation_outside_phoneme(self) -> None:
+        result = format_ssml("(плани́ната)")
+        assert result == '(<phoneme alphabet="ipa" ph="plaˈninata">планината</phoneme>)'
+        ET.fromstring(f"<root>{result}</root>")
+
+    def test_two_accented_words_each_wrapped(self) -> None:
+        result = format_ssml("пъ́рва вто́ра")
+        assert result == (
+            '<phoneme alphabet="ipa" ph="ˈpɤrva">първа</phoneme>'
+            ' <phoneme alphabet="ipa" ph="ˈvtɔra">втора</phoneme>'
+        )
+
+    def test_unaccented_word_with_punctuation_not_wrapped(self) -> None:
+        result = format_ssml("град,")
+        assert result == "град,"
+        assert "<phoneme" not in result
+
+    def test_hyphenated_compound_splits_on_hyphen(self) -> None:
+        # Each hyphen-separated part is rendered independently (hyphen = TTS word
+        # boundary), so only the accented part is wrapped and the hyphen stays
+        # outside any phoneme element.
+        result = format_ssml("бяло-че́рвен")
+        assert result == 'бяло-<phoneme alphabet="ipa" ph="ˈtʃɛrvɛn">червен</phoneme>'
+        ET.fromstring(f"<root>{result}</root>")
+
+    def test_number_token_passes_through(self) -> None:
+        assert format_ssml("100") == "100"
+
+    def test_abbrev_token_not_split_on_hyphen(self) -> None:
+        # "д-р" is an abbreviation, not a hyphenated word — it must pass through
+        # escaped, never split into phoneme parts.
+        result = format_ssml("д-р")
+        assert result == "д-р"
+        assert "<phoneme" not in result
 
 
 class TestBulgarianIpa:

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import re
 from xml.sax.saxutils import escape, quoteattr
 
+from bgaccent.tokenizer import tokenize
 from bgaccent.unicode import BULGARIAN_VOWELS, COMBINING_ACUTE
 
 _GRAPHEME_TO_IPA: dict[str, str] = {
@@ -38,9 +38,6 @@ _GRAPHEME_TO_IPA: dict[str, str] = {
     "я": "ja",
 }
 
-_WORD_RE = re.compile(r"(\S+)")
-
-
 _IPA_VOWELS = frozenset("aɛiɔuɤ")
 
 
@@ -66,22 +63,33 @@ def to_ipa(word: str, stress_vowel_index: int) -> str:
     return "".join(ipa_chars)
 
 
-def format_ssml(text: str) -> str:
-    def _render_word(token: str) -> str:
-        if COMBINING_ACUTE not in token:
-            return escape(token)
-        clean = token.replace(COMBINING_ACUTE, "")
-        vowel_idx = 0
-        for ch in token:
-            if ch == COMBINING_ACUTE:
-                break
-            if ch in BULGARIAN_VOWELS:
-                vowel_idx += 1
-        stress_index = vowel_idx - 1 if vowel_idx > 0 else 0
-        ipa = to_ipa(clean, stress_index)
-        return f'<phoneme alphabet="ipa" ph={quoteattr(ipa)}>{escape(clean)}</phoneme>'
+def _render_part(part: str) -> str:
+    """Render one hyphen-free chunk: a phoneme element if it carries a stress
+    mark, otherwise escaped text."""
+    if COMBINING_ACUTE not in part:
+        return escape(part)
+    clean = part.replace(COMBINING_ACUTE, "")
+    vowel_idx = 0
+    for ch in part:
+        if ch == COMBINING_ACUTE:
+            break
+        if ch in BULGARIAN_VOWELS:
+            vowel_idx += 1
+    stress_index = vowel_idx - 1 if vowel_idx > 0 else 0
+    ipa = to_ipa(clean, stress_index)
+    return f'<phoneme alphabet="ipa" ph={quoteattr(ipa)}>{escape(clean)}</phoneme>'
 
-    parts = _WORD_RE.split(text)
-    return "".join(
-        _render_word(part) if i % 2 == 1 else escape(part) for i, part in enumerate(parts)
-    )
+
+def format_ssml(text: str) -> str:
+    out: list[str] = []
+    for token in tokenize(text):
+        if token.kind != "word":
+            out.append(escape(token.text))
+            continue
+        # Each hyphen-separated part is rendered independently: the hyphen is a
+        # TTS word boundary, so a compound like "бяло-че́рвен" yields one phoneme
+        # per accented part with the hyphen left outside any element (and never
+        # fed into the IPA). Heuristic: this does not special-case comparative
+        # single-stress-domain forms such as "по-голя́м".
+        out.append(escape("-").join(_render_part(p) for p in token.text.split("-")))
+    return "".join(out)
