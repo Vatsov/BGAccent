@@ -165,29 +165,7 @@ class Accentor:
             }
 
         if "-" in word:
-            accented, status = self._process_hyphenated(word)
-            if status == "accented":
-                return accented, {
-                    "word": word,
-                    "accented": accented,
-                    "status": "accented",
-                    "line": token.line,
-                    "column": token.col,
-                }
-            if status == "oov":
-                return accented, {
-                    "word": word,
-                    "status": "oov",
-                    "script": detect_script(word),
-                    "line": token.line,
-                    "column": token.col,
-                }
-            return accented, {
-                "word": word,
-                "status": "skipped_monosyllabic",
-                "line": token.line,
-                "column": token.col,
-            }
+            return self._process_hyphenated(word, token.line, token.col)
 
         return self._accent_single_word_with_detail(word, token.line, token.col, sentence_words)
 
@@ -391,14 +369,23 @@ class Accentor:
             "column": col,
         }
 
-    def _process_hyphenated(self, word: str) -> tuple[str, str]:
-        """Accent a hyphenated token, returning ``(accented, aggregate_status)``.
+    def _process_hyphenated(
+        self, word: str, line: int, col: int
+    ) -> tuple[str, dict[str, Any]]:
+        """Accent a hyphenated token and return ``(accented, detail)``.
 
-        The status is one of ``accented`` (surface changed), ``oov`` (unchanged
-        but at least one part was a multisyllabic miss), or
-        ``skipped_monosyllabic`` (unchanged, nothing accentable). Exactly one
-        aggregate status is returned per token so the caller emits a single
-        report detail.
+        Whole-token matches (custom dict, then trie) emit a flat detail with the
+        same provenance shape as the non-hyphenated path (``sources`` and, for
+        trie hits, the real scalar ``source_mask``).
+
+        When no whole-token match exists, each constituent is accented on its
+        own and the detail is a *compound* one: ``{"compound": True, "parts":
+        [<per-part detail>, ...]}``. A compound token carries **no** top-level
+        ``source_mask`` because its surface is several independent accent
+        decisions with potentially different sources — the per-part details hold
+        the real provenance. ``status`` is ``accented`` (surface changed),
+        ``oov`` (unchanged, a multisyllabic part missed), or
+        ``skipped_monosyllabic`` (unchanged, nothing accentable).
         """
         clean = strip_accents(word)
         lookup_key = clean.lower()
@@ -406,27 +393,75 @@ class Accentor:
         custom_entry = self._custom.lookup(lookup_key)
         if custom_entry is not None:
             accented = place_accent(clean, custom_entry.vowel_index)
-            return accented, ("accented" if accented != clean else "skipped_monosyllabic")
+            if accented != clean:
+                return accented, {
+                    "word": word,
+                    "accented": accented,
+                    "sources": ["custom"],
+                    "status": "accented",
+                    "line": line,
+                    "column": col,
+                }
+            return accented, {
+                "word": word,
+                "status": "skipped_monosyllabic",
+                "line": line,
+                "column": col,
+            }
 
         results = self._trie.get(lookup_key)
         if results:
-            vowel_ordinal, _source_mask = _records_by_priority(results)[0]
+            vowel_ordinal, source_mask = _records_by_priority(results)[0]
             accented = place_accent(clean, vowel_ordinal)
-            return accented, ("accented" if accented != clean else "skipped_monosyllabic")
+            if accented != clean:
+                return accented, {
+                    "word": word,
+                    "accented": accented,
+                    "sources": mask_to_labels(source_mask),
+                    "source_mask": source_mask,
+                    "status": "accented",
+                    "line": line,
+                    "column": col,
+                }
+            return accented, {
+                "word": word,
+                "status": "skipped_monosyllabic",
+                "line": line,
+                "column": col,
+            }
 
         parts = clean.split("-")
         accented_parts: list[str] = []
+        part_details: list[dict[str, Any]] = []
         any_oov = False
         for part in parts:
             if part.isdigit():
                 accented_parts.append(part)
                 continue
-            accented_part, detail = self._accent_single_word_with_detail(part, 0, 0)
+            accented_part, detail = self._accent_single_word_with_detail(part, line, col)
             accented_parts.append(accented_part)
-            if detail is not None and detail.get("status") == "oov":
-                any_oov = True
+            if detail is not None:
+                part_details.append(detail)
+                if detail.get("status") == "oov":
+                    any_oov = True
 
         joined = "-".join(accented_parts)
         if joined != clean:
-            return joined, "accented"
-        return joined, ("oov" if any_oov else "skipped_monosyllabic")
+            status = "accented"
+        elif any_oov:
+            status = "oov"
+        else:
+            status = "skipped_monosyllabic"
+
+        compound_detail: dict[str, Any] = {
+            "word": word,
+            "accented": joined,
+            "compound": True,
+            "parts": part_details,
+            "status": status,
+            "line": line,
+            "column": col,
+        }
+        if status == "oov":
+            compound_detail["script"] = detect_script(word)
+        return joined, compound_detail

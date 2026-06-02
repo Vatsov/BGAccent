@@ -110,6 +110,41 @@ class TestHyphenatedReplaceSafe:
         assert acc.accent("по-голям") == "по-голя́м"
 
 
+class TestHyphenatedProvenance:
+    def test_whole_token_trie_match_emits_real_source(self, test_trie_path: Path) -> None:
+        # A whole-token hyphenated trie hit reports the same scalar provenance
+        # as the non-hyphenated path — no compound fabrication.
+        acc = Accentor(trie_path=test_trie_path)
+        result = acc.accent_with_report("по-голям")
+        d = next(d for d in result.details if d.get("word") == "по-голям")
+        assert d["sources"] == ["bayganyu"]
+        assert d["source_mask"] == 1
+        assert d["status"] == "accented"
+        assert "compound" not in d
+
+    def test_compound_detail_has_parts_and_no_top_level_mask(
+        self, test_trie_path: Path
+    ) -> None:
+        # A per-part fallback compound must NOT carry a synthesized scalar mask;
+        # provenance lives in the per-part details instead.
+        acc = Accentor(trie_path=test_trie_path)
+        result = acc.accent_with_report("майка-баща")
+        d = next(d for d in result.details if d.get("word") == "майка-баща")
+        assert d["compound"] is True
+        assert d["status"] == "accented"
+        assert d["accented"] == "ма́йка-баща́"
+        assert "source_mask" not in d
+        assert "sources" not in d
+        assert len(d["parts"]) == 2
+
+    def test_compound_parts_carry_per_part_provenance(self, test_trie_path: Path) -> None:
+        acc = Accentor(trie_path=test_trie_path)
+        result = acc.accent_with_report("майка-баща")
+        d = next(d for d in result.details if d.get("word") == "майка-баща")
+        assert [p["sources"] for p in d["parts"]] == [["bayganyu"], ["bayganyu"]]
+        assert [p["source_mask"] for p in d["parts"]] == [1, 1]
+
+
 class TestReplaceSafeHomographPriority:
     def test_replace_safe_respects_source_priority(self, test_trie_path: Path) -> None:
         # "килим": wiktionary@ordinal0 vs bgospodinov@ordinal1 (higher priority).
