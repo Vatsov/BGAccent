@@ -1,4 +1,8 @@
-"""Build a marisa RecordTrie from bayganyu CSV source."""
+"""Build a marisa RecordTrie from one or more dictionary sources.
+
+Supports the bayganyu CSV, Wiktionary JSONL, and bgospodinov DB parsers, with
+multi-source merging, license filtering, and conflict/homograph logging.
+"""
 
 from __future__ import annotations
 
