@@ -46,12 +46,16 @@ class StressDataset(Dataset[tuple[torch.Tensor, int]]):
     ) -> None:
         self._items: list[tuple[list[int], int]] = []
         self._max_len = max_len
-        for key in trie:
+        # ``marisa_trie`` yields a key once per stored record; iterate
+        # ``set(trie)`` so each distinct key is encoded once, then emit one
+        # training example per record so a homograph's every true stress is
+        # learned rather than only its first record.
+        for key in set(trie):
             results = trie.get(key)
             if results:
-                vowel_ordinal = results[0][0]
                 encoded = encode_word(key, vocab, max_len)
-                self._items.append((encoded, vowel_ordinal))
+                for vowel_ordinal, _mask in results:
+                    self._items.append((encoded, vowel_ordinal))
 
     def __len__(self) -> int:
         return len(self._items)

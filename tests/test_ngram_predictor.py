@@ -40,6 +40,14 @@ class TestNgramTableConstruction:
         table = build_ngram_table(trie)
         assert len(table) == 0
 
+    def test_homograph_records_both_counted_once(self) -> None:
+        # "килим" has two records (ordinals 0 and 1). The frequency table must
+        # see both stresses exactly once each — not the single first record, and
+        # not double-counted from marisa yielding the key once per record.
+        trie = _load_trie()
+        table = build_ngram_table(trie)
+        assert table["килим"] == {0: 1, 1: 1}
+
 
 class TestStressPrediction:
     def test_predict_returns_tuple_or_none(self) -> None:

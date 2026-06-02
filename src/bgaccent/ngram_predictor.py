@@ -17,18 +17,19 @@ def build_ngram_table(
     trie: marisa_trie.RecordTrie[tuple[int, int]],
 ) -> NgramTable:
     table: NgramTable = {}
-    for key in trie:
-        results = trie.get(key)
-        if not results:
+    # ``marisa_trie`` iteration yields the key once *per stored record*, while
+    # ``trie.get`` already returns all records — iterate ``set(trie)`` so each
+    # distinct key is processed once. A homograph contributes one count per
+    # record (one per true stress), so the suffix statistics see every outcome.
+    for key in set(trie):
+        records = trie.get(key)
+        if not records:
             continue
-        vowel_ordinal = results[0][0]
         word = strip_accents(key).lower()
         for n in range(_MIN_NGRAM, min(_MAX_NGRAM + 1, len(word) + 1)):
-            suffix = word[-n:]
-            if suffix not in table:
-                table[suffix] = {}
-            freq = table[suffix]
-            freq[vowel_ordinal] = freq.get(vowel_ordinal, 0) + 1
+            freq = table.setdefault(word[-n:], {})
+            for vowel_ordinal, _mask in records:
+                freq[vowel_ordinal] = freq.get(vowel_ordinal, 0) + 1
     return table
 
 

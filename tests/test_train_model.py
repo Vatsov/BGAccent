@@ -81,6 +81,21 @@ class TestDataset:
         assert isinstance(word_tensor, torch.Tensor)
         assert isinstance(label, int)
 
+    def test_homograph_records_both_present(self, train_mod: ModuleType) -> None:
+        import torch
+
+        trie = _load_trie()
+        vocab = train_mod.build_vocab(trie)
+        ds = train_mod.StressDataset(trie, vocab, max_len=30)
+        target = torch.tensor(train_mod.encode_word("килим", vocab, 30), dtype=torch.long)
+        labels = sorted(
+            int(label) for word_tensor, label in ds if torch.equal(word_tensor, target)
+        )
+        # "килим" has two records (ordinals 0 and 1); both must become training
+        # examples exactly once — not the single first record, and not doubled
+        # by marisa yielding the key once per record.
+        assert labels == [0, 1]
+
     def test_split_reproducible(self, train_mod: ModuleType) -> None:
         trie = _load_trie()
         vocab = train_mod.build_vocab(trie)
