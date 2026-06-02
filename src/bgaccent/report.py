@@ -4,6 +4,11 @@ import re
 from dataclasses import asdict, dataclass, field, fields
 from typing import Any
 
+# Version of the ``AccentResult.to_dict()`` / report JSON schema. Bump when the
+# shape of an emitted object changes (e.g. a new per-token detail key or a change
+# to ``stats``) so downstream consumers can detect and migrate across versions.
+SCHEMA_VERSION = 1
+
 
 @dataclass
 class AccentStats:
@@ -44,6 +49,7 @@ class AccentResult:
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "schema_version": SCHEMA_VERSION,
             "text": self.text,
             "stats": asdict(self.stats),
             "oov_words": self.oov_words,

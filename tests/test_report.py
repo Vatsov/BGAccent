@@ -85,6 +85,13 @@ class TestJSONSerialization:
         deserialized = json.loads(serialized)
         assert deserialized == d
 
+    def test_schema_version_present(self, test_trie_path: Path) -> None:
+        from bgaccent.report import SCHEMA_VERSION
+
+        acc = Accentor(trie_path=test_trie_path)
+        result = acc.accent_with_report("планината")
+        assert result.to_dict()["schema_version"] == SCHEMA_VERSION
+
     def test_latin_oov_script(self, test_trie_path: Path) -> None:
         acc = Accentor(trie_path=test_trie_path)
         result = acc.accent_with_report("unknown")
