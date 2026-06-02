@@ -86,6 +86,16 @@ class TestDisambiguatorWithMockedSpacy:
         result = dis.disambiguate("непозната", ["непозната"], [(0, 1), (1, 1)])
         assert result is None
 
+    def test_mocked_doc_yields_same_tokens_on_repeated_iteration(self) -> None:
+        # `doc.__iter__ = lambda self: iter(...)` returns a FRESH iterator each
+        # call, so iterating the mocked doc twice yields the tokens both times.
+        # (The `__iter__.return_value = iter([...])` form would exhaust after
+        # the first pass — this is why we keep the lambda.)
+        nlp = self._mock_nlp([("замък", "NOUN"), ("беше", "AUX")])
+        doc = nlp("замък беше")
+        assert [tok.text for tok in doc] == ["замък", "беше"]
+        assert [tok.text for tok in doc] == ["замък", "беше"]
+
 
 class TestAccentorDisambiguatorIntegration:
     def test_homograph_without_spacy_uses_priority(self) -> None:
