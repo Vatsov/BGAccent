@@ -94,6 +94,22 @@ class TestHyphenatedCustomOverride:
         assert acc.accent("по-голям") == "по́-голям"
 
 
+class TestHyphenatedReplaceSafe:
+    def test_replace_safe_reaccents_without_doubling(self, test_trie_path: Path) -> None:
+        # Already-accented compound must be stripped before re-accenting, not
+        # accented on top of the existing mark (which would double it).
+        acc = Accentor(trie_path=test_trie_path, mode="replace-safe")
+        result = acc.accent("по-го́лям")
+        assert result == "по-голя́м"
+        assert result.count("́") == 1
+
+    def test_preserve_unaccented_hyphenated_still_accents(self, test_trie_path: Path) -> None:
+        # Guards that operating on the stripped surface did not break the common
+        # path: an unaccented compound still gets its trie accent in preserve mode.
+        acc = Accentor(trie_path=test_trie_path)
+        assert acc.accent("по-голям") == "по-голя́м"
+
+
 class TestReplaceSafeHomographPriority:
     def test_replace_safe_respects_source_priority(self, test_trie_path: Path) -> None:
         # "килим": wiktionary@ordinal0 vs bgospodinov@ordinal1 (higher priority).

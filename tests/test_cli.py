@@ -130,8 +130,11 @@ class TestDataLoader:
         meta.write_text(json.dumps({"format_version": 99}), encoding="utf-8")
         from bgaccent.data import _validate_meta
 
-        with pytest.raises(ValueError, match="Unsupported"):
+        with pytest.raises(ValueError, match="Unsupported") as excinfo:
             _validate_meta(meta)
+        # Recovery hint must point to a real command, not the nonexistent
+        # bgaccent-build console script.
+        assert "bgaccent-build" not in str(excinfo.value)
 
     def test_meta_json_good_version(self, tmp_path: Path) -> None:
         meta = tmp_path / "bg.marisa.meta.json"

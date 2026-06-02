@@ -48,7 +48,7 @@ class StressPredictor:
             self._table = build_ngram_table(self._trie)
             self._built = True
 
-    def predict(self, word: str) -> tuple[int, float] | None:
+    def predict(self, word: str) -> tuple[int, float, str] | None:
         self._build_table()
         clean = strip_accents(word).lower()
         if count_vowels(clean) < 2:
@@ -73,6 +73,6 @@ class StressPredictor:
                 continue
             if majority_ordinal >= n_vowels:
                 continue
-            return majority_ordinal, confidence
+            return majority_ordinal, confidence, suffix
 
         return None

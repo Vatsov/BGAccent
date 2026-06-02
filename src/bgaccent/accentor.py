@@ -24,6 +24,16 @@ from bgaccent.unicode import (
 Mode = Literal["preserve", "replace-safe"]
 
 
+def _records_by_priority(records: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """Sort ``(vowel_ordinal, source_mask)`` records by source priority.
+
+    Highest-priority source first, then lowest vowel ordinal. Used everywhere a
+    homograph must be resolved deterministically (the bare ``records[0]`` order
+    from the trie is arbitrary).
+    """
+    return sorted(records, key=lambda r: (priority_key(r[1]), r[0]))
+
+
 class Accentor:
     def __init__(
         self,
@@ -210,9 +220,7 @@ class Accentor:
                     "column": col,
                 }
             if results:
-                vowel_ordinal, source_mask = sorted(
-                    results, key=lambda r: (priority_key(r[1]), r[0])
-                )[0]
+                vowel_ordinal, source_mask = _records_by_priority(results)[0]
                 accented = place_accent(clean, vowel_ordinal)
                 return accented, {
                     "word": clean,
@@ -320,14 +328,13 @@ class Accentor:
             if self._predictor is not None:
                 prediction = self._predictor.predict(clean)
                 if prediction is not None:
-                    pred_ordinal, pred_confidence = prediction
+                    pred_ordinal, pred_confidence, matched_suffix = prediction
                     accented = place_accent(word, pred_ordinal)
-                    suffix_len = min(6, len(clean))
                     return accented, {
                         "word": word,
                         "accented": accented,
                         "prediction_confidence": round(pred_confidence, 3),
-                        "matching_suffix": clean[-suffix_len:],
+                        "matching_suffix": matched_suffix,
                         "status": "predicted",
                         "line": line,
                         "column": col,
@@ -356,7 +363,7 @@ class Accentor:
                     "line": line,
                     "column": col,
                 }
-            sorted_results = sorted(results, key=lambda r: (priority_key(r[1]), r[0]))
+            sorted_results = _records_by_priority(results)
             chosen_ordinal, chosen_mask = sorted_results[0]
             accented = place_accent(word, chosen_ordinal)
             alternatives = [{"vowel_index": r[0], "source_mask": r[1]} for r in sorted_results[1:]]
@@ -393,20 +400,21 @@ class Accentor:
         aggregate status is returned per token so the caller emits a single
         report detail.
         """
-        lookup_key = strip_accents(word).lower()
+        clean = strip_accents(word)
+        lookup_key = clean.lower()
 
         custom_entry = self._custom.lookup(lookup_key)
         if custom_entry is not None:
-            accented = place_accent(word, custom_entry.vowel_index)
-            return accented, ("accented" if accented != word else "skipped_monosyllabic")
+            accented = place_accent(clean, custom_entry.vowel_index)
+            return accented, ("accented" if accented != clean else "skipped_monosyllabic")
 
         results = self._trie.get(lookup_key)
         if results:
-            vowel_ordinal, _source_mask = results[0]
-            accented = place_accent(word, vowel_ordinal)
-            return accented, ("accented" if accented != word else "skipped_monosyllabic")
+            vowel_ordinal, _source_mask = _records_by_priority(results)[0]
+            accented = place_accent(clean, vowel_ordinal)
+            return accented, ("accented" if accented != clean else "skipped_monosyllabic")
 
-        parts = word.split("-")
+        parts = clean.split("-")
         accented_parts: list[str] = []
         any_oov = False
         for part in parts:
@@ -419,6 +427,6 @@ class Accentor:
                 any_oov = True
 
         joined = "-".join(accented_parts)
-        if joined != word:
+        if joined != clean:
             return joined, "accented"
         return joined, ("oov" if any_oov else "skipped_monosyllabic")

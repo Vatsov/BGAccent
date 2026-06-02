@@ -18,7 +18,7 @@ def _validate_meta(meta_path: Path) -> None:
     if version is not None and version != SUPPORTED_TRIE_FORMAT_VERSION:
         raise ValueError(
             f"Unsupported BGAccent trie format version {version}. "
-            "Rebuild with: bgaccent-build, or reinstall: pip install bgaccent"
+            "Reinstall with: pip install --upgrade --force-reinstall bgaccent"
         )
 
 

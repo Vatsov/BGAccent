@@ -47,9 +47,10 @@ class TestStressPrediction:
         predictor = StressPredictor(trie)
         result = predictor.predict("болница")
         if result is not None:
-            ordinal, confidence = result
+            ordinal, confidence, suffix = result
             assert isinstance(ordinal, int)
             assert 0.0 <= confidence <= 1.0
+            assert isinstance(suffix, str)
 
     def test_predict_nonsense_returns_none(self) -> None:
         trie = _load_trie()
@@ -61,7 +62,7 @@ class TestStressPrediction:
         predictor = StressPredictor(trie, min_confidence=0.0)
         result = predictor.predict("планина")
         if result is not None:
-            _ordinal, confidence = result
+            _ordinal, confidence, _suffix = result
             assert 0.0 < confidence <= 1.0
 
     def test_longer_suffix_preferred(self) -> None:
@@ -92,7 +93,9 @@ class TestConfidenceThreshold:
         # "това" (len 4) is a coin-flip; "ова" (len 3) is 90% ordinal 2.
         predictor._table = {"това": {0: 1, 1: 1}, "ова": {2: 9, 0: 1}}
         predictor._built = True
-        assert predictor.predict("тестова") == (2, 0.9)
+        # The returned suffix must be the shorter one that actually won, not the
+        # longest candidate — this is what the report's matching_suffix relies on.
+        assert predictor.predict("тестова") == (2, 0.9, "ова")
 
     def test_low_threshold_accepts_more(self) -> None:
         trie = _load_trie()

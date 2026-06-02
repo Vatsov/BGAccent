@@ -66,6 +66,33 @@ class TestTransformerDisambiguator:
         result = dis.disambiguate("замък", ["Старият", "замък"], [(0, 1), (1, 1)])
         assert result == 0
 
+    def test_large_logits_do_not_overflow(self) -> None:
+        np = pytest.importorskip("numpy")
+        session = MagicMock()
+        # Raw model logits with large positive values: a naive
+        # exp(x) softmax overflows here; the stabilized softmax must not.
+        session.run.return_value = [np.array([[1000.0, 999.0]])]
+        dis = TransformerDisambiguator(model_path=None)
+        dis._session = session
+        dis._available = True
+        result = dis.disambiguate("замък", ["Старият", "замък"], [(0, 1), (1, 1)])
+        assert result == 0
+
+    def test_inference_failure_warns_and_returns_none(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        session = MagicMock()
+        session.run.side_effect = RuntimeError("input shape mismatch")
+        dis = TransformerDisambiguator(model_path=None)
+        dis._session = session
+        dis._available = True
+        result = dis.disambiguate("замък", ["Старият", "замък"], [(0, 1), (1, 1)])
+        assert result is None
+        assert (
+            "Warning: transformer inference failed: input shape mismatch"
+            in capsys.readouterr().err
+        )
+
 
 class TestThreeTierFallback:
     def test_priority_fallback_without_models(self) -> None:

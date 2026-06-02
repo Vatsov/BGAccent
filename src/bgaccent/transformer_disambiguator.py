@@ -65,7 +65,10 @@ class TransformerDisambiguator:
         try:
             outputs = self._session.run(None, {"input": encoded})
             logits = outputs[0][0]
-            probs = [math.exp(x) for x in logits]
+            # Numerically stable softmax: subtract the max logit before
+            # exponentiating so large positive logits cannot overflow.
+            max_logit = max(logits)
+            probs = [math.exp(x - max_logit) for x in logits]
             total = sum(probs)
             if total > 0:
                 probs = [p / total for p in probs]
@@ -73,7 +76,13 @@ class TransformerDisambiguator:
             valid_ordinals = {r[0] for r in trie_results}
             if max_idx in valid_ordinals:
                 return max_idx
-        except Exception:
-            pass
+        except Exception as exc:
+            # A genuine inference failure must stay visible rather than be
+            # silently indistinguishable from a legitimate "no confident
+            # prediction" fallback below.
+            print(
+                f"Warning: transformer inference failed: {exc}",
+                file=sys.stderr,
+            )
 
         return None
