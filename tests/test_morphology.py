@@ -128,6 +128,14 @@ class TestAccentorMorphologicalIntegration:
         assert "morphological_match" not in statuses
         assert "accented" in statuses
 
+    def test_homograph_base_resolved_by_priority(self) -> None:
+        # "килими" is OOV; it strips to the homograph base "килим", whose
+        # records are wiktionary@ordinal0 (ки́лим) and bgospodinov@ordinal1
+        # (кили́м, higher priority). The transferred stress must follow source
+        # priority, not the trie's arbitrary record order.
+        acc = Accentor(trie_path=FIXTURE_TRIE)
+        assert acc.accent("килими") == "кили́ми"
+
 
 class TestMorphologicalEdgeCases:
     def test_impossible_ordinal_falls_to_oov(self) -> None:

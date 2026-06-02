@@ -214,3 +214,21 @@ class TestCustomOverrideConflict:
         result = acc.accent_with_report("планината")
         override_details = [d for d in result.details if d.get("status") == "custom_override"]
         assert len(override_details) == 0
+
+    def test_homograph_override_uses_priority_alternative(
+        self, test_trie_path: Path, tmp_path: Path
+    ) -> None:
+        # "килим" is a homograph: wiktionary@ordinal0 (ки́лим, lower priority)
+        # vs bgospodinov@ordinal1 (кили́м, higher priority). A custom entry that
+        # agrees with the *lower-priority* record must still be flagged as an
+        # override against the priority-resolved candidate (кили́м), not against
+        # whichever record the trie happens to return first.
+        tsv = tmp_path / "custom.tsv"
+        tsv.write_text("килим\tки́лим\n", encoding="utf-8")
+        acc = Accentor(trie_path=test_trie_path, custom_dicts=[tsv])
+        result = acc.accent_with_report("килим")
+        assert result.text == "ки́лим"
+        assert result.stats.custom_overrides == 1
+        override_details = [d for d in result.details if d.get("status") == "custom_override"]
+        assert len(override_details) == 1
+        assert override_details[0]["dictionary_alternative"] == "кили́м"

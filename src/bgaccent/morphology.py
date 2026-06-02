@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from bgaccent.sources import records_by_priority
 from bgaccent.unicode import BULGARIAN_VOWELS, count_vowels
 
 if TYPE_CHECKING:
@@ -84,7 +85,7 @@ def morphology_lookup(
     for candidate in candidates:
         results = trie.get(candidate.lower())
         if results:
-            vowel_ordinal = results[0][0]
+            vowel_ordinal = records_by_priority(results)[0][0]
             # The stripped surface suffix is the part of ``word`` past the prefix
             # it shares with the matched base form. This is correct both when the
             # base is a bare stem (``градове`` → ``град`` → "ове") and when a base

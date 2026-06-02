@@ -11,7 +11,7 @@ from bgaccent.morphology import SuffixStripper, morphology_lookup, transfer_stre
 from bgaccent.neural_predictor import NeuralStressPredictor
 from bgaccent.ngram_predictor import StressPredictor
 from bgaccent.report import AccentResult, AccentStats, detect_script
-from bgaccent.sources import mask_to_labels, priority_key
+from bgaccent.sources import mask_to_labels, records_by_priority
 from bgaccent.tokenizer import Token, detokenize, tokenize
 from bgaccent.unicode import (
     COMBINING_ACUTE,
@@ -22,16 +22,6 @@ from bgaccent.unicode import (
 )
 
 Mode = Literal["preserve", "replace-safe"]
-
-
-def _records_by_priority(records: list[tuple[int, int]]) -> list[tuple[int, int]]:
-    """Sort ``(vowel_ordinal, source_mask)`` records by source priority.
-
-    Highest-priority source first, then lowest vowel ordinal. Used everywhere a
-    homograph must be resolved deterministically (the bare ``records[0]`` order
-    from the trie is arbitrary).
-    """
-    return sorted(records, key=lambda r: (priority_key(r[1]), r[0]))
 
 
 class Accentor:
@@ -198,7 +188,7 @@ class Accentor:
                     "column": col,
                 }
             if results:
-                vowel_ordinal, source_mask = _records_by_priority(results)[0]
+                vowel_ordinal, source_mask = records_by_priority(results)[0]
                 accented = place_accent(clean, vowel_ordinal)
                 return accented, {
                     "word": clean,
@@ -250,7 +240,7 @@ class Accentor:
             accented = place_accent(word, custom_entry.vowel_index)
             trie_results = self._trie.get(lookup_key)
             if trie_results:
-                trie_ordinal = trie_results[0][0]
+                trie_ordinal = records_by_priority(trie_results)[0][0]
                 if trie_ordinal != custom_entry.vowel_index:
                     trie_accented = place_accent(word, trie_ordinal)
                     return accented, {
@@ -341,7 +331,7 @@ class Accentor:
                     "line": line,
                     "column": col,
                 }
-            sorted_results = _records_by_priority(results)
+            sorted_results = records_by_priority(results)
             chosen_ordinal, chosen_mask = sorted_results[0]
             accented = place_accent(word, chosen_ordinal)
             alternatives = [{"vowel_index": r[0], "source_mask": r[1]} for r in sorted_results[1:]]
@@ -409,7 +399,7 @@ class Accentor:
 
         results = self._trie.get(lookup_key)
         if results:
-            vowel_ordinal, source_mask = _records_by_priority(results)[0]
+            vowel_ordinal, source_mask = records_by_priority(results)[0]
             accented = place_accent(clean, vowel_ordinal)
             if accented != clean:
                 return accented, {

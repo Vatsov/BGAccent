@@ -32,3 +32,13 @@ def priority_key(mask: int) -> int:
         if mask & SOURCE_BITS[name]:
             return i
     return 99
+
+
+def records_by_priority(records: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """Sort ``(vowel_ordinal, source_mask)`` records by source priority.
+
+    Highest-priority source first, then lowest vowel ordinal. Used everywhere a
+    homograph must be resolved deterministically (the bare ``records[0]`` order
+    from the trie is arbitrary).
+    """
+    return sorted(records, key=lambda r: (priority_key(r[1]), r[0]))
