@@ -1,12 +1,37 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock
+from typing import Any
 
 from bgaccent.accentor import Accentor
 from bgaccent.disambiguator import HOMOGRAPH_RULES, HomographDisambiguator, rule_lookup
 
 FIXTURE_TRIE = Path(__file__).parent / "fixtures" / "bg_test.marisa"
+
+
+class _FakeTok:
+    """A minimal spaCy-token stand-in carrying only the attributes the
+    disambiguator reads, so tests need no real spaCy install."""
+
+    def __init__(self, text: str, pos: str, lemma: str) -> None:
+        self.text = text
+        self.pos_ = pos
+        self.lemma_ = lemma
+
+
+class _StubDisambiguator:
+    """Duck-typed disambiguator that returns a fixed pre-tagged fake doc from
+    ``build_doc`` and resolves positions against it, bypassing spaCy."""
+
+    def __init__(self, doc: list[_FakeTok]) -> None:
+        self._doc = doc
+
+    def build_doc(self, words: list[str]) -> list[_FakeTok]:
+        return self._doc
+
+    def resolve_at(self, doc: Any, index: int, word: str) -> int | None:
+        tok = doc[index]
+        return rule_lookup(tok.lemma_.lower(), tok.pos_)
 
 
 class TestRuleTable:
@@ -29,72 +54,51 @@ class TestRuleTable:
         assert rule_lookup("абсурд", "NOUN") is None
 
 
-class TestDisambiguatorWithoutSpacy:
+class TestBuildDoc:
     def test_init_without_spacy(self) -> None:
         dis = HomographDisambiguator(spacy_model=None)
         assert dis._available is False
 
-    def test_disambiguate_returns_none_without_spacy(self) -> None:
+    def test_build_doc_returns_none_without_model(self) -> None:
         dis = HomographDisambiguator(spacy_model=None)
-        result = dis.disambiguate("замък", ["Старият", "замък", "беше"], [(0, 1), (1, 1)])
-        assert result is None
+        assert dis.build_doc(["замък"]) is None
 
 
-class TestDisambiguatorWithMockedSpacy:
-    def _mock_nlp(self, tokens_and_pos: list[tuple[str, str]]) -> MagicMock:
-        nlp = MagicMock()
-        doc = MagicMock()
-        mock_tokens = []
-        for text, pos in tokens_and_pos:
-            tok = MagicMock()
-            tok.text = text
-            tok.pos_ = pos
-            tok.lemma_ = text.lower()
-            mock_tokens.append(tok)
-        doc.__iter__ = lambda self: iter(mock_tokens)
-        nlp.return_value = doc
-        return nlp
+class TestResolveAt:
+    def _dis(self) -> HomographDisambiguator:
+        # resolve_at operates on the doc it is handed, so model availability is
+        # irrelevant — a model-less instance keeps the unit test spaCy-free.
+        return HomographDisambiguator(spacy_model=None)
 
-    def test_noun_context_returns_ordinal_0(self) -> None:
-        nlp = self._mock_nlp(
-            [
-                ("Старият", "ADJ"),
-                ("замък", "NOUN"),
-                ("беше", "AUX"),
-                ("красив", "ADJ"),
-            ]
-        )
-        dis = HomographDisambiguator(spacy_model=nlp)
-        result = dis.disambiguate("замък", ["Старият", "замък", "беше", "красив"], [(0, 1), (1, 1)])
-        assert result == 0
+    def test_none_doc_returns_none(self) -> None:
+        assert self._dis().resolve_at(None, 0, "замък") is None
 
-    def test_verb_context_returns_ordinal_1(self) -> None:
-        nlp = self._mock_nlp(
-            [
-                ("Той", "PRON"),
-                ("замък", "VERB"),
-                ("торбата", "NOUN"),
-            ]
-        )
-        dis = HomographDisambiguator(spacy_model=nlp)
-        result = dis.disambiguate("замък", ["Той", "замък", "торбата"], [(0, 1), (1, 1)])
-        assert result == 1
+    def test_noun_position_returns_ordinal_0(self) -> None:
+        doc = [_FakeTok("замък", "NOUN", "замък")]
+        assert self._dis().resolve_at(doc, 0, "замък") == 0
 
-    def test_unknown_word_returns_none(self) -> None:
-        nlp = self._mock_nlp([("непозната", "ADJ")])
-        dis = HomographDisambiguator(spacy_model=nlp)
-        result = dis.disambiguate("непозната", ["непозната"], [(0, 1), (1, 1)])
-        assert result is None
+    def test_verb_position_returns_ordinal_1(self) -> None:
+        doc = [_FakeTok("замък", "VERB", "замък")]
+        assert self._dis().resolve_at(doc, 0, "замък") == 1
 
-    def test_mocked_doc_yields_same_tokens_on_repeated_iteration(self) -> None:
-        # `doc.__iter__ = lambda self: iter(...)` returns a FRESH iterator each
-        # call, so iterating the mocked doc twice yields the tokens both times.
-        # (The `__iter__.return_value = iter([...])` form would exhaust after
-        # the first pass — this is why we keep the lambda.)
-        nlp = self._mock_nlp([("замък", "NOUN"), ("беше", "AUX")])
-        doc = nlp("замък беше")
-        assert [tok.text for tok in doc] == ["замък", "беше"]
-        assert [tok.text for tok in doc] == ["замък", "беше"]
+    def test_each_occurrence_resolved_from_its_own_position(self) -> None:
+        doc = [_FakeTok("замък", "NOUN", "замък"), _FakeTok("замък", "VERB", "замък")]
+        dis = self._dis()
+        assert dis.resolve_at(doc, 0, "замък") == 0
+        assert dis.resolve_at(doc, 1, "замък") == 1
+
+    def test_word_form_fallback_when_lemma_misses(self) -> None:
+        # lemma has no rule, but the (surface form, POS) pair does.
+        doc = [_FakeTok("замък", "NOUN", "несъществуващалема")]
+        assert self._dis().resolve_at(doc, 0, "замък") == 0
+
+    def test_unknown_pos_returns_none(self) -> None:
+        doc = [_FakeTok("замък", "ADJ", "замък")]
+        assert self._dis().resolve_at(doc, 0, "замък") is None
+
+    def test_index_out_of_range_returns_none(self) -> None:
+        doc = [_FakeTok("замък", "NOUN", "замък")]
+        assert self._dis().resolve_at(doc, 5, "замък") is None
 
 
 class TestAccentorDisambiguatorIntegration:
@@ -107,18 +111,24 @@ class TestAccentorDisambiguatorIntegration:
         assert details[0].get("disambiguation") == "priority_fallback"
 
     def test_homograph_resolved_by_pos_status(self) -> None:
-        nlp = MagicMock()
-        doc = MagicMock()
-        tok = MagicMock()
-        tok.text = "замък"
-        tok.pos_ = "NOUN"
-        tok.lemma_ = "замък"
-        doc.__iter__ = lambda self: iter([tok])
-        nlp.return_value = doc
-
-        acc = Accentor(trie_path=FIXTURE_TRIE, disambiguator_model=nlp)
+        acc = Accentor(trie_path=FIXTURE_TRIE)
+        acc._disambiguator = _StubDisambiguator([_FakeTok("замък", "NOUN", "замък")])
         result = acc.accent_with_report("замък")
         details = [d for d in result.details if "замък" in str(d.get("word", ""))]
         assert len(details) == 1
         assert details[0]["status"] == "homograph_resolved"
         assert details[0]["disambiguation"] == "pos"
+        assert details[0]["chosen_vowel_index"] == 0
+
+    def test_two_occurrences_resolved_independently(self) -> None:
+        # The same homograph twice: first tagged NOUN (ordinal 0), second VERB
+        # (ordinal 1). Each must take its own occurrence's stress.
+        doc = [_FakeTok("замък", "NOUN", "замък"), _FakeTok("замък", "VERB", "замък")]
+        acc = Accentor(trie_path=FIXTURE_TRIE)
+        acc._disambiguator = _StubDisambiguator(doc)
+        result = acc.accent_with_report("замък замък")
+        resolved = [d for d in result.details if d.get("status") == "homograph_resolved"]
+        assert len(resolved) == 2
+        assert resolved[0]["chosen_vowel_index"] == 0
+        assert resolved[1]["chosen_vowel_index"] == 1
+        assert result.text == "за́мък замъ́к"

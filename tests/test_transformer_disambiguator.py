@@ -103,16 +103,22 @@ class TestThreeTierFallback:
         assert details[0]["disambiguation"] == "priority_fallback"
 
     def test_pos_fallback_with_mock_spacy(self) -> None:
-        nlp = MagicMock()
-        doc = MagicMock()
         tok = MagicMock()
         tok.text = "замък"
         tok.pos_ = "NOUN"
         tok.lemma_ = "замък"
-        doc.__iter__ = lambda self: iter([tok])
-        nlp.return_value = doc
 
-        acc = Accentor(trie_path=FIXTURE_TRIE, disambiguator_model=nlp)
+        class _StubDisambiguator:
+            def build_doc(self, words: list[str]) -> list[MagicMock]:
+                return [tok]
+
+            def resolve_at(self, doc: object, index: int, word: str) -> int | None:
+                from bgaccent.disambiguator import rule_lookup
+
+                return rule_lookup(doc[index].lemma_.lower(), doc[index].pos_)
+
+        acc = Accentor(trie_path=FIXTURE_TRIE)
+        acc._disambiguator = _StubDisambiguator()
         result = acc.accent_with_report("замък")
         details = [d for d in result.details if d.get("word") == "замък"]
         assert details[0]["disambiguation"] == "pos"

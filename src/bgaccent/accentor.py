@@ -61,6 +61,11 @@ class Accentor:
         normalized = normalize(text)
         tokens = tokenize(normalized)
         sentence_words = [t.text for t in tokens if t.kind == "word"]
+        # Tag the whole word stream once; token i of the doc aligns to
+        # sentence_words[i] by construction, so each occurrence is resolved
+        # from its own position (see HomographDisambiguator.build_doc).
+        tagged_doc = self._disambiguator.build_doc(sentence_words)
+        word_index = 0
         result_tokens: list[Token] = []
         stats = AccentStats()
         details: list[dict[str, Any]] = []
@@ -77,7 +82,8 @@ class Accentor:
                 continue
 
             stats.total_tokens += 1
-            accented, detail = self._process_word_token(token, sentence_words)
+            accented, detail = self._process_word_token(token, tagged_doc, word_index)
+            word_index += 1
 
             result_tokens.append(
                 Token(
@@ -142,7 +148,7 @@ class Accentor:
         )
 
     def _process_word_token(
-        self, token: Token, sentence_words: list[str] | None = None
+        self, token: Token, tagged_doc: Any = None, word_index: int | None = None
     ) -> tuple[str, dict[str, Any] | None]:
         word = token.text
 
@@ -157,10 +163,17 @@ class Accentor:
         if "-" in word:
             return self._process_hyphenated(word, token.line, token.col)
 
-        return self._accent_single_word_with_detail(word, token.line, token.col, sentence_words)
+        return self._accent_single_word_with_detail(
+            word, token.line, token.col, tagged_doc, word_index
+        )
 
     def _accent_single_word_with_detail(
-        self, word: str, line: int, col: int, sentence_words: list[str] | None = None
+        self,
+        word: str,
+        line: int,
+        col: int,
+        tagged_doc: Any = None,
+        word_index: int | None = None,
     ) -> tuple[str, dict[str, Any] | None]:
         has_existing_accent = COMBINING_ACUTE in word
         clean = strip_accents(word)
@@ -316,10 +329,11 @@ class Accentor:
             }
 
         if len(results) > 1:
-            ctx = sentence_words if sentence_words is not None else [word]
-            resolved = self._disambiguator.disambiguate(
-                strip_accents(word).lower(), ctx, list(results)
-            )
+            resolved = None
+            if tagged_doc is not None and word_index is not None:
+                resolved = self._disambiguator.resolve_at(
+                    tagged_doc, word_index, strip_accents(word).lower()
+                )
             if resolved is not None and resolved in {r[0] for r in results}:
                 accented = place_accent(word, resolved)
                 return accented, {
@@ -426,6 +440,10 @@ class Accentor:
             if part.isdigit():
                 accented_parts.append(part)
                 continue
+            # Hyphen constituents are resolved in isolation: no tagged doc /
+            # word index is threaded, so a homograph part falls back to source
+            # priority rather than POS disambiguation. This is a deliberate gap
+            # — a compound part has no standalone position in the word stream.
             accented_part, detail = self._accent_single_word_with_detail(part, line, col)
             accented_parts.append(accented_part)
             if detail is not None:

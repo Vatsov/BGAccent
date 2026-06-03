@@ -156,9 +156,10 @@ class TestPosOrdinalValidation:
         acc = Accentor(trie_path=test_trie_path)
 
         class _StubDisambiguator:
-            def disambiguate(
-                self, word: str, ctx: list[str], results: list[tuple[int, int]]
-            ) -> int | None:
+            def build_doc(self, words: list[str]) -> object:
+                return object()  # a truthy doc; resolve_at ignores it here
+
+            def resolve_at(self, doc: object, index: int, word: str) -> int | None:
                 return 5  # not a candidate ordinal for "замък" ({0, 1})
 
         acc._disambiguator = _StubDisambiguator()  # type: ignore[assignment]

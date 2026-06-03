@@ -149,11 +149,14 @@ dependency but does not enable disambiguation on its own, and the CLI never
 loads spaCy. A transformer-based disambiguator is scaffolded for Phase 2 and is
 not wired into the runtime pipeline.
 
-> **Known limitation:** POS disambiguation resolves a homograph from the first
-> occurrence of that word form in the sentence. If the same homograph appears
-> more than once in one sentence with different parts of speech, every
-> occurrence currently receives the first occurrence's stress. Per-occurrence
-> resolution is deferred to Phase 2.
+> **Per-occurrence resolution:** when a spaCy pipeline is configured, the whole
+> word stream is POS-tagged in a single pass (via `Doc(vocab, words=...)`, so the
+> tagged tokens align one-to-one with the words and can be neither merged nor
+> split). Each homograph is resolved from the part of speech at its own position,
+> so the same form occurring more than once with different parts of speech
+> receives the correct stress per occurrence. Tagging runs over the word stream
+> without sentence segmentation; sentence-aware context is a future refinement
+> that can only improve tagging accuracy, not alignment.
 
 ## Building the dictionary trie
 

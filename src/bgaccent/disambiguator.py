@@ -40,27 +40,41 @@ class HomographDisambiguator:
         self._nlp = spacy_model
         self._available = spacy_model is not None
 
-    def disambiguate(
-        self,
-        word: str,
-        sentence_tokens: list[str],
-        trie_results: list[tuple[int, int]],
-    ) -> int | None:
+    def build_doc(self, words: list[str]) -> Any | None:
+        """POS-tag every word in a single pass.
+
+        Returns a tagged spaCy ``Doc`` whose token *i* corresponds to
+        ``words[i]`` by construction: the model's own tokenizer is bypassed via
+        ``Doc(vocab, words=...)``, so it can neither merge nor split tokens and
+        the word-list/doc alignment is exact. Returns ``None`` when no spaCy
+        model is configured. Call once per text; pair with :meth:`resolve_at`.
+        """
         if not self._available:
             return None
+        return self._tag(list(words))
 
-        sentence = " ".join(sentence_tokens)
-        doc = self._nlp(sentence)
+    def _tag(self, words: list[str]) -> Any:
+        from spacy.tokens import Doc
 
-        for tok in doc:
-            if tok.text.lower() == word.lower():
-                lemma = tok.lemma_.lower()
-                pos = tok.pos_
-                result = rule_lookup(lemma, pos)
-                if result is not None:
-                    return result
-                result = rule_lookup(word.lower(), pos)
-                if result is not None:
-                    return result
+        doc = Doc(self._nlp.vocab, words=words)
+        for _name, proc in self._nlp.pipeline:
+            proc(doc)
+        return doc
 
-        return None
+    def resolve_at(self, doc: Any, index: int, word: str) -> int | None:
+        """Resolve the homograph at ``index`` from its own position in ``doc``.
+
+        Each occurrence is resolved independently from the token at its own
+        position, so repeated occurrences of the same form with different parts
+        of speech receive different stress. ``word`` is the lowercased,
+        accent-stripped surface form, used for the (form, POS) fallback when the
+        lemma carries no rule. Returns ``None`` when ``doc`` is absent, the
+        index is out of range, or no rule matches.
+        """
+        if doc is None or index >= len(doc):
+            return None
+        tok = doc[index]
+        result = rule_lookup(tok.lemma_.lower(), tok.pos_)
+        if result is not None:
+            return result
+        return rule_lookup(word.lower(), tok.pos_)
