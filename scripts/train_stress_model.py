@@ -3,6 +3,7 @@
 Usage:
     uv run python scripts/train_stress_model.py --trie src/bgaccent/data/bg.marisa --out models/
 """
+
 from __future__ import annotations
 
 import json
@@ -95,8 +96,12 @@ class StressBiLSTM(nn.Module):
         super().__init__()
         self.embedding = nn.Embedding(vocab_size, embed_dim, padding_idx=0)
         self.lstm = nn.LSTM(
-            embed_dim, hidden_dim, num_layers=num_layers,
-            batch_first=True, bidirectional=True, dropout=dropout,
+            embed_dim,
+            hidden_dim,
+            num_layers=num_layers,
+            batch_first=True,
+            bidirectional=True,
+            dropout=dropout,
         )
         self.fc = nn.Linear(hidden_dim * 2, max_vowels)
         self.log_softmax = nn.LogSoftmax(dim=1)
@@ -117,7 +122,9 @@ def export_onnx(
     dummy = torch.randint(0, len(vocab), (1, 20))
     output_path.parent.mkdir(parents=True, exist_ok=True)
     torch.onnx.export(
-        model, dummy, str(output_path),
+        model,
+        dummy,
+        str(output_path),
         input_names=["input"],
         output_names=["output"],
         dynamic_axes={"input": {0: "batch", 1: "seq_len"}, "output": {0: "batch"}},

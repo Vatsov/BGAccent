@@ -3,6 +3,7 @@
 Usage:
     uv run python scripts/evaluate_quality.py --trie bg.marisa --gt gt.tsv
 """
+
 from __future__ import annotations
 
 import json
@@ -58,9 +59,7 @@ def evaluate_quality(trie_path: Path, ground_truth_path: Path) -> EvaluationResu
             layer_counts[layer] = {"total": 0, "correct": 0}
         layer_counts[layer]["total"] += 1
 
-        is_accented = (
-            strip_accents(predicted) != strip_accents(word) or predicted != word
-        )
+        is_accented = strip_accents(predicted) != strip_accents(word) or predicted != word
 
         if is_accented or status not in ("oov", "skipped_monosyllabic"):
             result.total_accented += 1
@@ -69,12 +68,14 @@ def evaluate_quality(trie_path: Path, ground_truth_path: Path) -> EvaluationResu
                 layer_counts[layer]["correct"] += 1
             else:
                 result.total_incorrect += 1
-                result.errors.append({
-                    "word": word,
-                    "predicted": predicted,
-                    "actual": expected_accented,
-                    "layer": layer,
-                })
+                result.errors.append(
+                    {
+                        "word": word,
+                        "predicted": predicted,
+                        "actual": expected_accented,
+                        "layer": layer,
+                    }
+                )
 
     if result.total_words > 0:
         result.coverage = result.total_accented / result.total_words
@@ -91,9 +92,7 @@ def evaluate_quality(trie_path: Path, ground_truth_path: Path) -> EvaluationResu
     return result
 
 
-def compare_baselines(
-    current: EvaluationResult, baseline_path: Path
-) -> dict[str, Any]:
+def compare_baselines(current: EvaluationResult, baseline_path: Path) -> dict[str, Any]:
     baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
     regressions: list[str] = []
     improvements: list[str] = []
