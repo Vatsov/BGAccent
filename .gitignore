@@ -44,3 +44,9 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Internal training corpus (copyrighted, do not commit/redistribute)
+data/corpus/
+data/homographs/
+# Generated workflows that inline corpus-derived worklists (built from the above)
+tools/homographs/*.local.js
