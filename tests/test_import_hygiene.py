@@ -17,7 +17,7 @@ from pathlib import Path
 TESTS_DIR = Path(__file__).parent
 
 # Top-level packages that are optional extras, not part of the dev group.
-FORBIDDEN_TOP_LEVEL = {"torch", "onnx", "onnxruntime", "spacy"}
+FORBIDDEN_TOP_LEVEL = {"torch", "onnx", "onnxruntime", "spacy", "stanza"}
 
 
 def _module_level_offenders(tree: ast.Module) -> list[str]:

@@ -1,10 +1,17 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
 from bgaccent.accentor import Accentor
-from bgaccent.disambiguator import HOMOGRAPH_RULES, HomographDisambiguator, rule_lookup
+from bgaccent.disambiguator import (
+    HOMOGRAPH_RULES,
+    HomographDisambiguator,
+    TaggedToken,
+    load_pos_rules,
+    rule_lookup,
+)
 
 FIXTURE_TRIE = Path(__file__).parent / "fixtures" / "bg_test.marisa"
 
@@ -26,7 +33,7 @@ class _StubDisambiguator:
     def __init__(self, doc: list[_FakeTok]) -> None:
         self._doc = doc
 
-    def build_doc(self, words: list[str]) -> list[_FakeTok]:
+    def build_doc(self, sentences: list[list[str]], is_word: list[list[bool]]) -> list[_FakeTok]:
         return self._doc
 
     def resolve_at(self, doc: Any, index: int, word: str) -> int | None:
@@ -54,6 +61,37 @@ class TestRuleTable:
         assert rule_lookup("абсурд", "NOUN") is None
 
 
+class TestLoadPosRules:
+    def _write(self, tmp_path: Path) -> Path:
+        path = tmp_path / "pos_rules.json"
+        path.write_text(
+            json.dumps(
+                [
+                    {"form": "барабани", "pos": "NOUN", "ordinal": 2, "support": 23},
+                    {"form": "барабани", "pos": "VERB", "ordinal": 3, "support": 20},
+                ],
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        return path
+
+    def test_loads_form_pos_keys(self, tmp_path: Path) -> None:
+        rules = load_pos_rules(self._write(tmp_path), merge_builtin=False)
+        assert rules == {("барабани", "NOUN"): 2, ("барабани", "VERB"): 3}
+
+    def test_merge_keeps_builtin(self, tmp_path: Path) -> None:
+        rules = load_pos_rules(self._write(tmp_path))
+        assert rules[("замък", "NOUN")] == 0  # built-in preserved
+        assert rules[("барабани", "VERB")] == 3  # loaded added
+
+    def test_resolve_at_uses_loaded_rules(self, tmp_path: Path) -> None:
+        rules = load_pos_rules(self._write(tmp_path), merge_builtin=False)
+        dis = HomographDisambiguator(spacy_model=None, rules=rules)
+        doc = [TaggedToken(pos="VERB", lemma="барабаня")]
+        assert dis.resolve_at(doc, 0, "барабани") == 3
+
+
 class TestBuildDoc:
     def test_init_without_spacy(self) -> None:
         dis = HomographDisambiguator(spacy_model=None)
@@ -61,7 +99,7 @@ class TestBuildDoc:
 
     def test_build_doc_returns_none_without_model(self) -> None:
         dis = HomographDisambiguator(spacy_model=None)
-        assert dis.build_doc(["замък"]) is None
+        assert dis.build_doc([["замък"]], [[True]]) is None
 
 
 class TestResolveAt:
@@ -74,30 +112,30 @@ class TestResolveAt:
         assert self._dis().resolve_at(None, 0, "замък") is None
 
     def test_noun_position_returns_ordinal_0(self) -> None:
-        doc = [_FakeTok("замък", "NOUN", "замък")]
+        doc = [TaggedToken(pos="NOUN", lemma="замък")]
         assert self._dis().resolve_at(doc, 0, "замък") == 0
 
     def test_verb_position_returns_ordinal_1(self) -> None:
-        doc = [_FakeTok("замък", "VERB", "замък")]
+        doc = [TaggedToken(pos="VERB", lemma="замък")]
         assert self._dis().resolve_at(doc, 0, "замък") == 1
 
     def test_each_occurrence_resolved_from_its_own_position(self) -> None:
-        doc = [_FakeTok("замък", "NOUN", "замък"), _FakeTok("замък", "VERB", "замък")]
+        doc = [TaggedToken(pos="NOUN", lemma="замък"), TaggedToken(pos="VERB", lemma="замък")]
         dis = self._dis()
         assert dis.resolve_at(doc, 0, "замък") == 0
         assert dis.resolve_at(doc, 1, "замък") == 1
 
     def test_word_form_fallback_when_lemma_misses(self) -> None:
         # lemma has no rule, but the (surface form, POS) pair does.
-        doc = [_FakeTok("замък", "NOUN", "несъществуващалема")]
+        doc = [TaggedToken(pos="NOUN", lemma="несъществуващалема")]
         assert self._dis().resolve_at(doc, 0, "замък") == 0
 
     def test_unknown_pos_returns_none(self) -> None:
-        doc = [_FakeTok("замък", "ADJ", "замък")]
+        doc = [TaggedToken(pos="ADJ", lemma="замък")]
         assert self._dis().resolve_at(doc, 0, "замък") is None
 
     def test_index_out_of_range_returns_none(self) -> None:
-        doc = [_FakeTok("замък", "NOUN", "замък")]
+        doc = [TaggedToken(pos="NOUN", lemma="замък")]
         assert self._dis().resolve_at(doc, 5, "замък") is None
 
 

@@ -156,7 +156,7 @@ class TestPosOrdinalValidation:
         acc = Accentor(trie_path=test_trie_path)
 
         class _StubDisambiguator:
-            def build_doc(self, words: list[str]) -> object:
+            def build_doc(self, sentences: list[list[str]], is_word: list[list[bool]]) -> object:
                 return object()  # a truthy doc; resolve_at ignores it here
 
             def resolve_at(self, doc: object, index: int, word: str) -> int | None:

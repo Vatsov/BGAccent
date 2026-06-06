@@ -6,7 +6,12 @@ from typing import Any, Literal
 import marisa_trie
 
 from bgaccent.custom import CustomDict
-from bgaccent.disambiguator import HomographDisambiguator
+from bgaccent.disambiguator import (
+    Disambiguator,
+    HomographDisambiguator,
+    StanzaDisambiguator,
+    load_pos_rules,
+)
 from bgaccent.morphology import SuffixStripper, morphology_lookup, transfer_stress
 from bgaccent.neural_predictor import NeuralStressPredictor
 from bgaccent.ngram_predictor import StressPredictor
@@ -23,6 +28,36 @@ from bgaccent.unicode import (
 
 Mode = Literal["preserve", "replace-safe"]
 
+_SENTENCE_END = {".", "!", "?", "…"}
+
+
+def _segment_for_tagging(tokens: list[Token]) -> tuple[list[list[str]], list[list[bool]]]:
+    """Split tokens into per-sentence streams for the POS tagger.
+
+    Each sentence keeps its non-space tokens (words, numbers, punctuation) so
+    the tagger has clause context; the parallel ``is_word`` mask marks which are
+    accentable words, so the disambiguator emits one tag per word in reading
+    order. Sentence boundaries fall after ``.!?…`` punctuation.
+    """
+    sentences: list[list[str]] = []
+    flags: list[list[bool]] = []
+    current: list[str] = []
+    current_flags: list[bool] = []
+    for token in tokens:
+        if token.kind == "space":
+            continue
+        current.append(token.text)
+        current_flags.append(token.kind == "word")
+        if token.kind == "punct" and token.text in _SENTENCE_END:
+            sentences.append(current)
+            flags.append(current_flags)
+            current = []
+            current_flags = []
+    if current:
+        sentences.append(current)
+        flags.append(current_flags)
+    return sentences, flags
+
 
 class Accentor:
     def __init__(
@@ -31,7 +66,9 @@ class Accentor:
         mark_monosyllables: bool = False,
         custom_dicts: list[Path] | None = None,
         mode: Mode = "preserve",
+        disambiguator: Literal["stanza", "spacy"] | None = None,
         disambiguator_model: Any = None,
+        disambiguator_rules: dict[tuple[str, str], int] | Path | str | None = None,
         enable_prediction: bool = False,
         neural_model_path: Path | None = None,
         neural_vocab_path: Path | None = None,
@@ -44,7 +81,18 @@ class Accentor:
         self._custom = CustomDict.from_paths(custom_dicts) if custom_dicts else CustomDict()
         self._mode = mode
         self._stripper = SuffixStripper()
-        self._disambiguator = HomographDisambiguator(spacy_model=disambiguator_model)
+        rules = (
+            load_pos_rules(disambiguator_rules)
+            if isinstance(disambiguator_rules, str | Path)
+            else disambiguator_rules
+        )
+        self._disambiguator: Disambiguator
+        if disambiguator == "stanza":
+            self._disambiguator = StanzaDisambiguator(rules=rules)
+        else:
+            self._disambiguator = HomographDisambiguator(
+                spacy_model=disambiguator_model, rules=rules
+            )
         self._predictor: StressPredictor | None = (
             StressPredictor(self._trie) if enable_prediction else None
         )
@@ -60,11 +108,12 @@ class Accentor:
     def accent_with_report(self, text: str) -> AccentResult:
         normalized = normalize(text)
         tokens = tokenize(normalized)
-        sentence_words = [t.text for t in tokens if t.kind == "word"]
-        # Tag the whole word stream once; token i of the doc aligns to
-        # sentence_words[i] by construction, so each occurrence is resolved
-        # from its own position (see HomographDisambiguator.build_doc).
-        tagged_doc = self._disambiguator.build_doc(sentence_words)
+        # Tag once, per sentence and with punctuation retained, so the tagger
+        # sees real clause context instead of one document-long word blur. The
+        # returned tags carry one entry per word in reading order, so the
+        # running ``word_index`` below indexes each occurrence's own POS.
+        sentences, is_word = _segment_for_tagging(tokens)
+        tagged_doc = self._disambiguator.build_doc(sentences, is_word)
         word_index = 0
         result_tokens: list[Token] = []
         stats = AccentStats()

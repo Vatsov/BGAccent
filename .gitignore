@@ -50,3 +50,6 @@ data/corpus/
 data/homographs/
 # Generated workflows that inline corpus-derived worklists (built from the above)
 tools/homographs/*.local.js
+
+# Model artifacts (trained locally, reproducible from scripts)
+models/

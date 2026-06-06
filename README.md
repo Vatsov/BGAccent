@@ -17,7 +17,8 @@ pip install bgaccent
 Optional dependencies:
 
 ```bash
-pip install bgaccent[nlp]     # spaCy POS-based homograph disambiguation
+pip install bgaccent[pos]     # Stanza POS tagger for homograph disambiguation (Bulgarian)
+pip install bgaccent[nlp]     # spaCy backend (no official Bulgarian pipeline ships with spaCy)
 pip install bgaccent[neural]  # onnxruntime: run a pre-trained ONNX stress model (no torch)
 pip install bgaccent[train]   # PyTorch + ONNX to train/export a model
 ```
@@ -142,21 +143,38 @@ Words are resolved in this order — first match wins:
 6. **OOV** — word reported as out-of-vocabulary
 
 Homographs (words with multiple valid stress positions) are flagged in the
-report for manual review. POS-based disambiguation (spaCy) is Python-API-only:
-it runs only when you pass a loaded spaCy pipeline via
-`Accentor(disambiguator_model=...)`. Installing `bgaccent[nlp]` provides the
-dependency but does not enable disambiguation on its own, and the CLI never
-loads spaCy. A transformer-based disambiguator is scaffolded for Phase 2 and is
-not wired into the runtime pipeline.
+report for manual review. **POS-based disambiguation** resolves them by part of
+speech (за́мък/NOUN vs замъ́к/VERB) and is Python-API-only — the CLI never loads a
+tagger. spaCy ships no official Bulgarian pipeline, so the working backend is
+**Stanza** (`bgaccent[pos]`):
 
-> **Per-occurrence resolution:** when a spaCy pipeline is configured, the whole
-> word stream is POS-tagged in a single pass (via `Doc(vocab, words=...)`, so the
-> tagged tokens align one-to-one with the words and can be neither merged nor
-> split). Each homograph is resolved from the part of speech at its own position,
-> so the same form occurring more than once with different parts of speech
-> receives the correct stress per occurrence. Tagging runs over the word stream
-> without sentence segmentation; sentence-aware context is a future refinement
-> that can only improve tagging accuracy, not alignment.
+```python
+from bgaccent import accent
+from bgaccent.accentor import Accentor
+from bgaccent.data import get_trie_path
+
+acc = Accentor(
+    trie_path=get_trie_path(),
+    disambiguator="stanza",                       # downloads/loads the Bulgarian POS model
+    disambiguator_rules="pos_rules.json",          # (form, POS) → stress table; optional
+)
+acc.accent("Старият замък се издигаше над града.")  # → ...за́мък...
+```
+
+The `(form, POS) → ordinal` table is mined from the labeled corpus by
+`tools/homographs/build_pos_rules.py`. On a held-out by-record split it lifts
+accuracy from a per-surface majority baseline of 0.82 to **0.89** with real
+Stanza tagging (0.97 with oracle POS). The rule table is corpus/Wiktionary
+derived (CC-BY-SA) and is **not** bundled in the MIT core — pass it via
+`disambiguator_rules`; without it the small built-in `HOMOGRAPH_RULES` apply.
+A `"spacy"` backend exists for any future Bulgarian spaCy pipeline.
+
+> **Per-occurrence resolution:** the input is POS-tagged per sentence (with
+> punctuation retained for context) and the tags align one-to-one with the word
+> stream by construction — Stanza is fed pre-tokenized, so it can neither merge
+> nor split tokens. Each homograph is resolved from the part of speech at its own
+> position, so the same form occurring more than once with different parts of
+> speech receives the correct stress per occurrence.
 
 ## Building the dictionary trie
 

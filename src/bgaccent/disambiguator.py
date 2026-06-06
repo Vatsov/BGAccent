@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from typing import Any
+import json
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Protocol
 
 HOMOGRAPH_RULES: dict[tuple[str, str], int] = {
     ("замък", "NOUN"): 0,
@@ -35,46 +38,145 @@ def rule_lookup(lemma: str, pos: str) -> int | None:
     return HOMOGRAPH_RULES.get((lemma, pos))
 
 
-class HomographDisambiguator:
-    def __init__(self, spacy_model: Any = None) -> None:
-        self._nlp = spacy_model
-        self._available = spacy_model is not None
+def resolve_rule(rules: dict[tuple[str, str], int], lemma: str, pos: str, word: str) -> int | None:
+    """Look up a stress ordinal, lemma first then surface form, both by POS."""
+    result = rules.get((lemma.lower(), pos))
+    if result is not None:
+        return result
+    return rules.get((word.lower(), pos))
 
-    def build_doc(self, words: list[str]) -> Any | None:
-        """POS-tag every word in a single pass.
 
-        Returns a tagged spaCy ``Doc`` whose token *i* corresponds to
-        ``words[i]`` by construction: the model's own tokenizer is bypassed via
-        ``Doc(vocab, words=...)``, so it can neither merge nor split tokens and
-        the word-list/doc alignment is exact. Returns ``None`` when no spaCy
-        model is configured. Call once per text; pair with :meth:`resolve_at`.
-        """
-        if not self._available:
-            return None
-        return self._tag(list(words))
+def load_pos_rules(path: str | Path, *, merge_builtin: bool = True) -> dict[tuple[str, str], int]:
+    """Load a generated ``(form, POS) -> ordinal`` rule table.
 
-    def _tag(self, words: list[str]) -> Any:
-        from spacy.tokens import Doc
+    The file is the JSON produced by ``tools/homographs/build_pos_rules.py`` — a
+    list of ``{"form", "pos", "ordinal", "support"}`` records mined from the
+    labeled corpus, lifting POS-conditioned coverage far beyond the hand-written
+    :data:`HOMOGRAPH_RULES`. With ``merge_builtin`` the built-in rules are kept
+    as a base and the loaded rules override on key collisions. Pass the result
+    as ``rules=`` to a disambiguator (or ``disambiguator_rules=`` to ``Accentor``).
+    """
+    records: list[dict[str, Any]] = json.loads(Path(path).read_text(encoding="utf-8"))
+    loaded = {(r["form"], r["pos"]): int(r["ordinal"]) for r in records}
+    if merge_builtin:
+        return {**HOMOGRAPH_RULES, **loaded}
+    return loaded
 
-        doc = Doc(self._nlp.vocab, words=words)
-        for _name, proc in self._nlp.pipeline:
-            proc(doc)
-        return doc
+
+@dataclass(frozen=True, slots=True)
+class TaggedToken:
+    """A POS-tagged word, backend-agnostic. The disambiguation contract speaks
+    in these rather than a spaCy ``Doc`` so any tagger backend can satisfy it."""
+
+    pos: str
+    lemma: str
+
+
+class Disambiguator(Protocol):
+    """The seam ``Accentor`` depends on. ``build_doc`` tags the whole input —
+    given per-sentence token streams plus a parallel mask of which tokens are
+    words — and returns one :class:`TaggedToken` per word, in reading order, so
+    occurrence *i* aligns to word *i*. ``resolve_at`` reads the POS at a word's
+    own position."""
+
+    def build_doc(
+        self, sentences: list[list[str]], is_word: list[list[bool]]
+    ) -> list[TaggedToken] | None: ...
+
+    def resolve_at(self, doc: Any, index: int, word: str) -> int | None: ...
+
+
+class _RuleDisambiguator:
+    """Shared rule-resolution; backends differ only in how they tag."""
+
+    _rules: dict[tuple[str, str], int]
 
     def resolve_at(self, doc: Any, index: int, word: str) -> int | None:
-        """Resolve the homograph at ``index`` from its own position in ``doc``.
+        """Resolve the homograph at ``index`` from its own tagged position.
 
-        Each occurrence is resolved independently from the token at its own
-        position, so repeated occurrences of the same form with different parts
-        of speech receive different stress. ``word`` is the lowercased,
-        accent-stripped surface form, used for the (form, POS) fallback when the
-        lemma carries no rule. Returns ``None`` when ``doc`` is absent, the
-        index is out of range, or no rule matches.
+        Each occurrence is resolved independently, so repeated occurrences of
+        the same form with different parts of speech receive different stress.
+        ``word`` is the lowercased, accent-stripped surface form, used for the
+        (form, POS) lookup when the lemma carries no rule. Returns ``None`` when
+        ``doc`` is absent, the index is out of range, or no rule matches.
         """
         if doc is None or index >= len(doc):
             return None
         tok = doc[index]
-        result = rule_lookup(tok.lemma_.lower(), tok.pos_)
-        if result is not None:
-            return result
-        return rule_lookup(word.lower(), tok.pos_)
+        return resolve_rule(self._rules, tok.lemma, tok.pos, word)
+
+
+class HomographDisambiguator(_RuleDisambiguator):
+    """spaCy backend. Bulgarian has no official spaCy pipeline, so this is inert
+    unless a spaCy-like model is supplied; :class:`StanzaDisambiguator` is the
+    working Bulgarian path."""
+
+    def __init__(
+        self, spacy_model: Any = None, rules: dict[tuple[str, str], int] | None = None
+    ) -> None:
+        self._nlp = spacy_model
+        self._available = spacy_model is not None
+        self._rules = HOMOGRAPH_RULES if rules is None else rules
+
+    def build_doc(
+        self, sentences: list[list[str]], is_word: list[list[bool]]
+    ) -> list[TaggedToken] | None:
+        """Tag each sentence in its own context via ``Doc(vocab, words=...)`` —
+        the model's tokenizer is bypassed so tokens stay one-to-one with the
+        input and per-sentence punctuation gives the tagger real context.
+        Returns one :class:`TaggedToken` per word token, in reading order."""
+        if not self._available:
+            return None
+        from spacy.tokens import Doc
+
+        tags: list[TaggedToken] = []
+        for sent_tokens, flags in zip(sentences, is_word, strict=True):
+            doc = Doc(self._nlp.vocab, words=sent_tokens)
+            for _name, proc in self._nlp.pipeline:
+                proc(doc)
+            for tok, is_w in zip(doc, flags, strict=False):
+                if is_w:
+                    tags.append(TaggedToken(pos=tok.pos_, lemma=tok.lemma_))
+        return tags
+
+
+class StanzaDisambiguator(_RuleDisambiguator):
+    """Bulgarian POS backend via Stanza (``pip install bgaccent[pos]``).
+
+    Uses pre-tokenized input so Stanza tags exactly the supplied tokens — no
+    re-segmentation — keeping output one-to-one with the word stream.
+    """
+
+    def __init__(
+        self,
+        rules: dict[tuple[str, str], int] | None = None,
+        lang: str = "bg",
+    ) -> None:
+        self._rules = HOMOGRAPH_RULES if rules is None else rules
+        try:
+            import stanza
+        except ImportError as exc:  # pragma: no cover - exercised only without the extra
+            raise RuntimeError(
+                "Stanza POS disambiguation requires `pip install bgaccent[pos]`"
+            ) from exc
+        self._nlp = stanza.Pipeline(
+            lang=lang,
+            processors="tokenize,pos,lemma",
+            tokenize_pretokenized=True,
+            verbose=False,
+            use_gpu=False,
+        )
+        self._available = True
+
+    def build_doc(
+        self, sentences: list[list[str]], is_word: list[list[bool]]
+    ) -> list[TaggedToken] | None:
+        if not sentences:
+            return None
+        doc = self._nlp(sentences)
+        tags: list[TaggedToken] = []
+        for sent, flags in zip(doc.sentences, is_word, strict=False):
+            for word, is_w in zip(sent.words, flags, strict=False):
+                if is_w:
+                    tags.append(TaggedToken(pos=word.upos or "", lemma=word.lemma or ""))
+        return tags
