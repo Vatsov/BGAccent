@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# Virtual environments
+.venv/
+.env/
+
+# Type checking / linting / testing
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Data / build artifacts
+*.marisa
+!tests/fixtures/*.marisa
+!src/bgaccent/data/bg.marisa
+sources/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Claude Code
+.claude/
+CLAUDE.md
+
+# Project docs (local only)
+docs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Internal training corpus (copyrighted, do not commit/redistribute)
+data/corpus/
+data/homographs/
+# Generated workflows that inline corpus-derived worklists (built from the above)
+tools/homographs/*.local.js
+
+# Model artifacts (trained locally, reproducible from scripts)
+models/
+
+# Generated homograph data (CC-BY-SA, mined from corpus; built on demand)
+packages/bgaccent-data-homographs/src/bgaccent_data_homographs/pos_rules.json

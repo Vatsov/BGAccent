@@ -1,0 +1,63 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "bgaccent"
+version = "0.1.0"
+description = "Pre-TTS QA tool for Bulgarian text — automatic accent placement"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+dependencies = [
+    "marisa-trie>=1.1",
+    "typer>=0.12",
+    "rich>=13",
+]
+
+[project.optional-dependencies]
+nlp = ["spacy>=3.7"]
+# Bulgarian POS tagging for homograph disambiguation. spaCy has no official BG
+# pipeline; Stanza does. Needs a recent Stanza (>=1.10): older releases choke on
+# torch>=2.6's weights_only=True default when loading the pretrain embeddings.
+pos = ["stanza>=1.10"]
+# Inference only: run a pre-trained ONNX stress model. Lightweight (no torch).
+neural = ["onnxruntime>=1.16"]
+# Training: build/export a model. Pulls in torch; heavier, fewer platforms.
+train = ["torch>=2.0", "onnx>=1.14", "onnxruntime>=1.16"]
+
+[project.scripts]
+bgaccent = "bgaccent.cli:app"
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+# RUF100 = no unused/stale `# noqa`; PGH004 = no blanket (uncoded) `# noqa`.
+# Together they keep suppressions honest: every `# noqa` must name a real,
+# currently-firing rule. Code around the lint (e.g. lazy imports in fixtures)
+# rather than blanket-silencing it.
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF100", "PGH004"]
+
+[tool.mypy]
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = ["marisa_trie", "bgaccent_data_full_gpl", "bgaccent_data_homographs", "spacy", "spacy.*", "stanza", "stanza.*", "torch", "torch.*", "onnx", "onnx.*", "onnxruntime", "onnxruntime.*", "numpy", "numpy.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/bgaccent"]
+
+[dependency-groups]
+dev = [
+    "mypy>=2.1.0",
+    "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.15.14",
+]

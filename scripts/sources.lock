@@ -1,0 +1,22 @@
+{
+  "bayganyu": {
+    "url": "https://raw.githubusercontent.com/bayganyu/bulgarian-dictionary/122bdf2a7dca9411d6e2370af38c3304e98ffcbe/dictionary.csv",
+    "commit": "122bdf2a7dca9411d6e2370af38c3304e98ffcbe",
+    "sha256": "9e69acfddb9aa45ce9088589e47f123fbb45a2ad9aa38935b578811fe4a466cf",
+    "license": "MIT",
+    "filename": "bayganyu.csv"
+  },
+  "bgospodinov": {
+    "url": "https://github.com/bgospodinov/bulgarian_dictionary (build from source: ./build --no-slovnik)",
+    "manual": true,
+    "sha256": "13a051db4f9a28024446e54e83affbd0569373053036b45bf085d6324ce1a86b",
+    "license": "GPL-3.0",
+    "filename": "bgospodinov.db"
+  },
+  "wiktionary": {
+    "url": "https://kaikki.org/dictionary/Bulgarian/kaikki.org-dictionary-Bulgarian.jsonl",
+    "sha256": "7758fbcab87cb3e5822d72cccaea9d47fbb016cbf983f1e3da445c7ae37c578a",
+    "license": "CC-BY-SA-4.0",
+    "filename": "wiktionary.jsonl"
+  }
+}
