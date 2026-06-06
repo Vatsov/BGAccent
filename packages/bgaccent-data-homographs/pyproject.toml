@@ -1,0 +1,22 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "bgaccent-data-homographs"
+version = "0.1.0"
+description = "Bulgarian homograph (form, POS) -> stress rules for BGAccent"
+readme = "README.md"
+# The DATA is derived from Bulgarian Wiktionary (via kaikki.org) and is therefore
+# CC-BY-SA-4.0 — kept in this separate package so the MIT `bgaccent` core stays
+# unencumbered by share-alike. See NOTICE for attribution.
+license = "CC-BY-SA-4.0"
+requires-python = ">=3.11"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/bgaccent_data_homographs"]
+
+# pos_rules.json is generated, not committed (see README). force-include it so a
+# locally-built wheel ships the data even though it is gitignored in the source tree.
+[tool.hatch.build.targets.wheel.force-include]
+"src/bgaccent_data_homographs/pos_rules.json" = "bgaccent_data_homographs/pos_rules.json"

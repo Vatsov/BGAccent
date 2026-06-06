@@ -81,11 +81,20 @@ class Accentor:
         self._custom = CustomDict.from_paths(custom_dicts) if custom_dicts else CustomDict()
         self._mode = mode
         self._stripper = SuffixStripper()
-        rules = (
-            load_pos_rules(disambiguator_rules)
-            if isinstance(disambiguator_rules, str | Path)
-            else disambiguator_rules
-        )
+        # Rule precedence: explicit disambiguator_rules > the optional installed
+        # data package > the built-in HOMOGRAPH_RULES (handled downstream).
+        rules: dict[tuple[str, str], int] | None
+        if isinstance(disambiguator_rules, str | Path):
+            rules = load_pos_rules(disambiguator_rules)
+        elif disambiguator_rules is not None:
+            rules = disambiguator_rules
+        elif disambiguator is not None:
+            from bgaccent.data import get_pos_rules_path
+
+            auto_path = get_pos_rules_path()
+            rules = load_pos_rules(auto_path) if auto_path is not None else None
+        else:
+            rules = None
         self._disambiguator: Disambiguator
         if disambiguator == "stanza":
             self._disambiguator = StanzaDisambiguator(rules=rules)

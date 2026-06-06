@@ -53,3 +53,6 @@ tools/homographs/*.local.js
 
 # Model artifacts (trained locally, reproducible from scripts)
 models/
+
+# Generated homograph data (CC-BY-SA, mined from corpus; built on demand)
+packages/bgaccent-data-homographs/src/bgaccent_data_homographs/pos_rules.json

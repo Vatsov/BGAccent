@@ -92,6 +92,23 @@ class TestLoadPosRules:
         assert dis.resolve_at(doc, 0, "барабани") == 3
 
 
+class TestDataPackageResolver:
+    def test_returns_none_when_package_absent(self) -> None:
+        # bgaccent-data-homographs is not a dev dependency, so the optional
+        # rule table is unavailable and callers must fall back gracefully.
+        from bgaccent.data import get_pos_rules_path
+
+        assert get_pos_rules_path() is None
+
+    def test_accentor_auto_load_falls_back_to_builtin(self) -> None:
+        # disambiguator set but no explicit rules and no data package installed:
+        # construction must succeed and resolve via the built-in priority path.
+        acc = Accentor(trie_path=FIXTURE_TRIE, disambiguator="spacy")
+        result = acc.accent_with_report("замък")
+        details = [d for d in result.details if d.get("word") == "замък"]
+        assert details[0]["status"] == "homograph_flagged"
+
+
 class TestBuildDoc:
     def test_init_without_spacy(self) -> None:
         dis = HomographDisambiguator(spacy_model=None)

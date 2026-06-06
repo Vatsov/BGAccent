@@ -37,3 +37,19 @@ def get_trie_path() -> Path:
     raise FileNotFoundError(
         f"Trie file not found at {_BUNDLED_TRIE}. Reinstall with: pip install bgaccent"
     )
+
+
+def get_pos_rules_path() -> Path | None:
+    """Locate the optional homograph (form, POS) rule table.
+
+    Returns the path shipped by the separately-licensed ``bgaccent-data-homographs``
+    package when it is installed and its data is present, else ``None`` so callers
+    fall back to the built-in ``HOMOGRAPH_RULES``. Mirrors :func:`get_trie_path`'s
+    lazy lookup of the optional dictionary package.
+    """
+    try:
+        from bgaccent_data_homographs import get_pos_rules_path as ext_path
+    except ImportError:
+        return None
+    path = ext_path()
+    return path if path.exists() else None

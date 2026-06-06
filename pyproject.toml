@@ -45,7 +45,7 @@ warn_return_any = true
 warn_unused_configs = true
 
 [[tool.mypy.overrides]]
-module = ["marisa_trie", "bgaccent_data_full_gpl", "spacy", "spacy.*", "stanza", "stanza.*", "torch", "torch.*", "onnx", "onnx.*", "onnxruntime", "onnxruntime.*", "numpy", "numpy.*"]
+module = ["marisa_trie", "bgaccent_data_full_gpl", "bgaccent_data_homographs", "spacy", "spacy.*", "stanza", "stanza.*", "torch", "torch.*", "onnx", "onnx.*", "onnxruntime", "onnxruntime.*", "numpy", "numpy.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

@@ -1,0 +1,16 @@
+bgaccent-data-homographs
+========================
+
+The homograph stress-rule data in this package (pos_rules.json) is derived from:
+
+  - Bulgarian Wiktionary, obtained via kaikki.org machine-readable extracts.
+    Licensed under Creative Commons Attribution-ShareAlike (CC-BY-SA).
+    https://www.wiktionary.org/  /  https://kaikki.org/
+
+The (form, POS) -> stress-ordinal table was produced by aggregating attested
+stress placements; it is distributed under CC-BY-SA-4.0 in accordance with the
+share-alike terms of the source.
+
+The packaging code in this distribution is part of the BGAccent project.
+The BGAccent core engine itself is MIT-licensed and distributed separately as
+the `bgaccent` package.
